@@ -1,0 +1,11 @@
+{
+  "asOf": "2026-09-19",
+  "note": "USD per million tokens, list prices. Re-check against the providers' pricing pages before publishing any cost figure. Claude cacheRead and cacheWrite for Opus, Sonnet and Haiku are derived from the usual 0.1x and 1.25x multipliers on the input price.",
+  "models": {
+    "jev-1.13.0": { "input": 0.042, "output": 0 },
+    "claude-opus-5": { "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite": 6.25 },
+    "claude-fable-5-1": { "input": 10, "output": 50, "cacheRead": 0.25, "cacheWrite": 12.5 },
+    "claude-sonnet-5": { "input": 2, "output": 10, "cacheRead": 0.2, "cacheWrite": 2.5 },
+    "claude-haiku-4-5": { "input": 1, "output": 5, "cacheRead": 0.1, "cacheWrite": 1.25 }
+  }
+}

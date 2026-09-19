@@ -1,0 +1,16 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# node / typescript
+node_modules/
+dist/
+*.tsbuildinfo
+
+# run artifacts (extracted text, API response cache, benchmark output)
+out/
+.cache/
+
+# os / editor
+.DS_Store

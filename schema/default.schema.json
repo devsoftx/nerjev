@@ -1,0 +1,90 @@
+{
+  "entities": {
+    "person": "A named individual human, such as 'Maria Chen'. Job titles, honorifics and pronouns are not part of the name.",
+    "organization": "A named company, agency, institution or team, such as 'Bank of America'. Generic words such as 'the bank' or 'the company' are not organizations.",
+    "location": "A named country, region, city, address or geographic feature, such as 'Oslo'. Generic words such as 'city of' or 'office' are not part of the name.",
+    "product": "The brand or model name of a commercial product, service or software, such as 'Vision Pro'. Generic words for the kind of thing, such as robot, drone, app, sensor or service, are not part of the name.",
+    "event": "A named event such as a conference, election, war or disaster, such as 'World Economic Forum'. A generic description such as 'a chess tournament' is not a named event.",
+    "date": "A specific calendar date, month or year, such as '12 June 2024', 'March 2021' or '2019'. Prepositions are not part of it, and relative expressions such as 'last year' or 'next quarter' are not dates."
+  },
+  "exactMatchOnly": [
+    "date"
+  ],
+  "relations": {
+    "works_for": {
+      "domain": [
+        "person"
+      ],
+      "range": [
+        "organization"
+      ],
+      "text": "A is employed by, leads, or holds a role at B."
+    },
+    "founded": {
+      "domain": [
+        "person"
+      ],
+      "range": [
+        "organization"
+      ],
+      "text": "A created or co-founded B."
+    },
+    "acquired": {
+      "domain": [
+        "organization"
+      ],
+      "range": [
+        "organization"
+      ],
+      "text": "A bought or took control of B."
+    },
+    "subsidiary_of": {
+      "domain": [
+        "organization"
+      ],
+      "range": [
+        "organization"
+      ],
+      "text": "A is owned or controlled by B."
+    },
+    "located_in": {
+      "domain": [
+        "organization",
+        "location",
+        "event"
+      ],
+      "range": [
+        "location"
+      ],
+      "text": "A is situated or headquartered in B, or took place in B."
+    },
+    "produces": {
+      "domain": [
+        "organization"
+      ],
+      "range": [
+        "product"
+      ],
+      "text": "A makes, sells or operates B."
+    },
+    "participated_in": {
+      "domain": [
+        "person",
+        "organization"
+      ],
+      "range": [
+        "event"
+      ],
+      "text": "A took part in B."
+    },
+    "occurred_on": {
+      "domain": [
+        "event"
+      ],
+      "range": [
+        "date"
+      ],
+      "text": "A happened on or during B."
+    }
+  }
+}

@@ -1,0 +1,22 @@
+# Local Neo4j for nerjev. Start with: docker compose up -d
+# Browser: http://localhost:7474  (user neo4j, password from NEO4J_PASSWORD in .env, default nerjev-local)
+services:
+  neo4j:
+    image: neo4j:latest
+    container_name: nerjev-neo4j
+    ports:
+      - "7474:7474" # browser
+      - "7687:7687" # bolt, which the app connects to
+    environment:
+      # Neo4j refuses passwords shorter than 8 characters.
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-nerjev-local}
+    volumes:
+      - nerjev-neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  nerjev-neo4j-data:

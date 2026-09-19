@@ -1,0 +1,188 @@
+[
+  {
+    "id": "g01",
+    "text": "Helena Marquez founded Nordlight Robotics in 2014. Nordlight Robotics is headquartered in Oslo and makes the Fjord X1 warehouse robot.",
+    "entities": [
+      { "text": "Helena Marquez", "type": "person" },
+      { "text": "Nordlight Robotics", "type": "organization" },
+      { "text": "2014", "type": "date" },
+      { "text": "Oslo", "type": "location" },
+      { "text": "Fjord X1", "type": "product" }
+    ],
+    "relations": [
+      { "source": "Helena Marquez", "type": "founded", "target": "Nordlight Robotics" },
+      { "source": "Nordlight Robotics", "type": "located_in", "target": "Oslo" },
+      { "source": "Nordlight Robotics", "type": "produces", "target": "Fjord X1" }
+    ]
+  },
+  {
+    "id": "g02",
+    "text": "In March 2021, Brightwater Capital acquired Tallis Foods for an undisclosed sum. Tallis Foods, which is based in Leeds, will keep its chief executive, Priya Raman.",
+    "entities": [
+      { "text": "March 2021", "type": "date" },
+      { "text": "Brightwater Capital", "type": "organization" },
+      { "text": "Tallis Foods", "type": "organization" },
+      { "text": "Leeds", "type": "location" },
+      { "text": "Priya Raman", "type": "person" }
+    ],
+    "relations": [
+      { "source": "Brightwater Capital", "type": "acquired", "target": "Tallis Foods" },
+      { "source": "Tallis Foods", "type": "located_in", "target": "Leeds" },
+      { "source": "Priya Raman", "type": "works_for", "target": "Tallis Foods" }
+    ]
+  },
+  {
+    "id": "g03",
+    "text": "Dr. Samuel Okoro leads the research team at Veridian Labs. He presented the company's new sensor, the AquaSense 3, at the Global Water Summit in Singapore.",
+    "entities": [
+      { "text": "Samuel Okoro", "type": "person" },
+      { "text": "Veridian Labs", "type": "organization" },
+      { "text": "AquaSense 3", "type": "product" },
+      { "text": "Global Water Summit", "type": "event" },
+      { "text": "Singapore", "type": "location" }
+    ],
+    "relations": [
+      { "source": "Samuel Okoro", "type": "works_for", "target": "Veridian Labs" },
+      { "source": "Global Water Summit", "type": "located_in", "target": "Singapore" },
+      { "source": "Samuel Okoro", "type": "participated_in", "target": "Global Water Summit" },
+      { "source": "Veridian Labs", "type": "produces", "target": "AquaSense 3" }
+    ]
+  },
+  {
+    "id": "g04",
+    "text": "Kestrel Aerospace is a subsidiary of Monarch Industries. Kestrel Aerospace, which is headquartered in Toulouse, builds the Swift 200 drone.",
+    "entities": [
+      { "text": "Kestrel Aerospace", "type": "organization" },
+      { "text": "Monarch Industries", "type": "organization" },
+      { "text": "Toulouse", "type": "location" },
+      { "text": "Swift 200", "type": "product" }
+    ],
+    "relations": [
+      { "source": "Kestrel Aerospace", "type": "subsidiary_of", "target": "Monarch Industries" },
+      { "source": "Kestrel Aerospace", "type": "located_in", "target": "Toulouse" },
+      { "source": "Kestrel Aerospace", "type": "produces", "target": "Swift 200" }
+    ]
+  },
+  {
+    "id": "g05",
+    "text": "Delegates from Ostrava Energy and the Baltic Wind Alliance attended the Lisbon Climate Forum, which took place in Lisbon on 12 June 2024. Ingrid Halvorsen of Ostrava Energy gave the opening talk at the Lisbon Climate Forum.",
+    "entities": [
+      { "text": "Ostrava Energy", "type": "organization" },
+      { "text": "Baltic Wind Alliance", "type": "organization" },
+      { "text": "Lisbon Climate Forum", "type": "event" },
+      { "text": "Lisbon", "type": "location" },
+      { "text": "12 June 2024", "type": "date" },
+      { "text": "Ingrid Halvorsen", "type": "person" }
+    ],
+    "relations": [
+      { "source": "Ostrava Energy", "type": "participated_in", "target": "Lisbon Climate Forum" },
+      { "source": "Baltic Wind Alliance", "type": "participated_in", "target": "Lisbon Climate Forum" },
+      { "source": "Lisbon Climate Forum", "type": "located_in", "target": "Lisbon" },
+      { "source": "Lisbon Climate Forum", "type": "occurred_on", "target": "12 June 2024" },
+      { "source": "Ingrid Halvorsen", "type": "works_for", "target": "Ostrava Energy" },
+      { "source": "Ingrid Halvorsen", "type": "participated_in", "target": "Lisbon Climate Forum" }
+    ]
+  },
+  {
+    "id": "g06",
+    "text": "Marcus Bell and Aiko Tanaka co-founded Pellucid Software in 2009. Pellucid Software sells a note-taking app called Inkwell, and Tanaka now serves as its chief technology officer.",
+    "entities": [
+      { "text": "Marcus Bell", "type": "person" },
+      { "text": "Aiko Tanaka", "type": "person" },
+      { "text": "Pellucid Software", "type": "organization" },
+      { "text": "2009", "type": "date" },
+      { "text": "Inkwell", "type": "product" },
+      { "text": "Tanaka", "type": "person" }
+    ],
+    "relations": [
+      { "source": "Marcus Bell", "type": "founded", "target": "Pellucid Software" },
+      { "source": "Aiko Tanaka", "type": "founded", "target": "Pellucid Software" },
+      { "source": "Pellucid Software", "type": "produces", "target": "Inkwell" },
+      { "source": "Tanaka", "type": "works_for", "target": "Pellucid Software" }
+    ]
+  },
+  {
+    "id": "g07",
+    "text": "Quillon Pharma announced on 3 February 2023 that it had bought Reedham Biotech. Reedham Biotech's founder, Thomas Adeyemi, will join Quillon Pharma as head of research.",
+    "entities": [
+      { "text": "Quillon Pharma", "type": "organization" },
+      { "text": "3 February 2023", "type": "date" },
+      { "text": "Reedham Biotech", "type": "organization" },
+      { "text": "Thomas Adeyemi", "type": "person" }
+    ],
+    "relations": [
+      { "source": "Quillon Pharma", "type": "acquired", "target": "Reedham Biotech" },
+      { "source": "Thomas Adeyemi", "type": "founded", "target": "Reedham Biotech" },
+      { "source": "Thomas Adeyemi", "type": "works_for", "target": "Quillon Pharma" }
+    ]
+  },
+  {
+    "id": "g08",
+    "text": "The bank said its new mobile app had reached two million users. A spokesperson declined to name the vendor, and analysts expect results next quarter.",
+    "entities": [],
+    "relations": []
+  },
+  {
+    "id": "g09",
+    "text": "Sofia Lindqvist, a partner at Arden & Holt, moved from Stockholm to Nairobi last year. Arden & Holt has advised the city of Nairobi since 2020.",
+    "entities": [
+      { "text": "Sofia Lindqvist", "type": "person" },
+      { "text": "Arden & Holt", "type": "organization" },
+      { "text": "Stockholm", "type": "location" },
+      { "text": "Nairobi", "type": "location" },
+      { "text": "2020", "type": "date" }
+    ],
+    "relations": [{ "source": "Sofia Lindqvist", "type": "works_for", "target": "Arden & Holt" }]
+  },
+  {
+    "id": "g10",
+    "text": "The Meridian Open, a chess tournament, was held in Tbilisi in August 2022. Grandmaster Levan Beridze and a team from the Caucasus Chess Federation competed in the Meridian Open.",
+    "entities": [
+      { "text": "Meridian Open", "type": "event" },
+      { "text": "Tbilisi", "type": "location" },
+      { "text": "August 2022", "type": "date" },
+      { "text": "Levan Beridze", "type": "person" },
+      { "text": "Caucasus Chess Federation", "type": "organization" }
+    ],
+    "relations": [
+      { "source": "Meridian Open", "type": "located_in", "target": "Tbilisi" },
+      { "source": "Meridian Open", "type": "occurred_on", "target": "August 2022" },
+      { "source": "Levan Beridze", "type": "participated_in", "target": "Meridian Open" },
+      { "source": "Caucasus Chess Federation", "type": "participated_in", "target": "Meridian Open" }
+    ]
+  },
+  {
+    "id": "g11",
+    "text": "Ravensworth Motors, based in Coventry, builds the Kite EV. The carmaker is owned by Halden Group, and its chief designer is Elena Petrova.",
+    "entities": [
+      { "text": "Ravensworth Motors", "type": "organization" },
+      { "text": "Coventry", "type": "location" },
+      { "text": "Kite EV", "type": "product" },
+      { "text": "Halden Group", "type": "organization" },
+      { "text": "Elena Petrova", "type": "person" }
+    ],
+    "relations": [
+      { "source": "Ravensworth Motors", "type": "located_in", "target": "Coventry" },
+      { "source": "Ravensworth Motors", "type": "produces", "target": "Kite EV" },
+      { "source": "Ravensworth Motors", "type": "subsidiary_of", "target": "Halden Group" },
+      { "source": "Elena Petrova", "type": "works_for", "target": "Ravensworth Motors" }
+    ]
+  },
+  {
+    "id": "g12",
+    "text": "Noor Al-Hashimi, chief executive of Zephyr Logistics, spoke at the Dubai Supply Chain Expo on 9 October 2023. Zephyr Logistics operates a parcel service called SwiftDrop.",
+    "entities": [
+      { "text": "Noor Al-Hashimi", "type": "person" },
+      { "text": "Zephyr Logistics", "type": "organization" },
+      { "text": "Dubai Supply Chain Expo", "type": "event" },
+      { "text": "9 October 2023", "type": "date" },
+      { "text": "SwiftDrop", "type": "product" }
+    ],
+    "relations": [
+      { "source": "Noor Al-Hashimi", "type": "works_for", "target": "Zephyr Logistics" },
+      { "source": "Noor Al-Hashimi", "type": "participated_in", "target": "Dubai Supply Chain Expo" },
+      { "source": "Dubai Supply Chain Expo", "type": "occurred_on", "target": "9 October 2023" },
+      { "source": "Zephyr Logistics", "type": "produces", "target": "SwiftDrop" }
+    ]
+  }
+]
