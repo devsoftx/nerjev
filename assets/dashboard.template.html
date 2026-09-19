@@ -1,0 +1,757 @@
+<title>nerjev Benchmark</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --plane: #f9f9f7;
+    --surface: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #76746e;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.1);
+    --wash: rgba(11, 11, 11, 0.04);
+    --accent: #2a78d6;
+    --accent-soft: #86b6ef;
+    --deemph: #b4b3ab;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
+    --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --plane: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #94928b;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255, 255, 255, 0.1); --wash: rgba(255, 255, 255, 0.05);
+      --accent: #3987e5; --accent-soft: #1c5cab; --deemph: #55544f;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --plane: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #94928b;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255, 255, 255, 0.1); --wash: rgba(255, 255, 255, 0.05);
+    --accent: #3987e5; --accent-soft: #1c5cab; --deemph: #55544f;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+  }
+
+  * { box-sizing: border-box; }
+  body { background: var(--plane); color: var(--ink); font: 400 15px/1.55 var(--sans); }
+  .page { max-width: 1180px; margin-inline: auto; padding-inline: clamp(16px, 4vw, 40px); padding-block: 36px 72px; display: grid; gap: 44px; }
+  h1, h2, h3 { margin: 0; text-wrap: balance; font-weight: 600; }
+  h1 { font-size: clamp(26px, 4.2vw, 40px); line-height: 1.12; letter-spacing: -0.015em; max-width: 22ch; }
+  h2 { font-size: 20px; line-height: 1.25; }
+  h3 { font-size: 15px; line-height: 1.3; }
+  p { margin: 0; }
+  .eyebrow { font: 500 11.5px/1.4 var(--mono); letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+  .lede { color: var(--ink-2); max-width: 68ch; font-size: 16px; }
+  .mono { font-family: var(--mono); font-size: 0.92em; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .masthead { display: grid; gap: 14px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 22px; color: var(--ink-2); font-size: 13px; }
+  .meta b { font-weight: 500; color: var(--ink); }
+
+  .controls { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; margin-block: -20px; padding-block: 12px; background: var(--plane); border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center; }
+  .control { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
+  .control > span { font: 500 11.5px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); padding: 2px; gap: 2px; }
+  .seg label { position: relative; cursor: pointer; }
+  .seg input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .seg span { display: block; padding: 5px 11px; border-radius: 5px; font-size: 13px; color: var(--ink-2); white-space: nowrap; }
+  .seg label:hover span { background: var(--wash); }
+  .seg input:checked + span { background: var(--ink); color: var(--plane); }
+  .seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .section { display: grid; gap: 18px; }
+  .section > header { display: grid; gap: 4px; }
+  .section > header p { color: var(--ink-2); max-width: 74ch; }
+
+  .summary { display: grid; grid-template-columns: minmax(260px, 5fr) 8fr; gap: 28px; align-items: stretch; }
+  .hero { display: grid; align-content: start; gap: 8px; padding-block: 4px; }
+  .hero .figure { font-size: clamp(52px, 8vw, 84px); line-height: 1; font-weight: 600; letter-spacing: -0.03em; }
+  .hero .unit { color: var(--ink-2); font-size: 16px; }
+  .hero .context { color: var(--ink-2); max-width: 40ch; margin-top: 6px; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .tile { background: var(--surface); padding: 15px 16px 14px; display: grid; gap: 4px; align-content: start; }
+  .tile .label { font-size: 12.5px; color: var(--ink-2); }
+  .tile .value { font-size: 25px; line-height: 1.1; font-weight: 600; letter-spacing: -0.01em; }
+  .tile .note { font-size: 12.5px; color: var(--muted); }
+
+  .pipeline { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); }
+  .pipeline li { padding: 13px 13px 14px; display: grid; gap: 3px; align-content: start; border-left: 1px solid var(--border); min-width: 0; }
+  .pipeline li:first-child { border-left: 0; }
+  .pipeline .step { font: 500 11px/1.3 var(--mono); color: var(--muted); letter-spacing: 0.06em; }
+  .pipeline .name { font-weight: 600; font-size: 13.5px; line-height: 1.25; }
+  .pipeline .who { font: 400 11.5px/1.3 var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
+  .pipeline .stat { font-size: 12.5px; color: var(--ink-2); margin-top: 5px; }
+  .pipeline .stat b { color: var(--ink); font-weight: 600; }
+  .pipeline .share { height: 3px; border-radius: 2px; background: var(--grid); margin-top: 7px; overflow: hidden; }
+  .pipeline .share i { display: block; height: 100%; background: var(--swatch, var(--accent)); }
+
+  .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 18px 14px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+  .panel > header { display: grid; gap: 3px; }
+  .panel > header p { color: var(--ink-2); font-size: 13.5px; }
+  .chart { width: 100%; min-height: 60px; }
+  .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .chart text { font-family: var(--sans); fill: var(--ink-2); font-size: 12px; }
+  .chart text.strong { fill: var(--ink); font-weight: 600; }
+  .chart text.tick { fill: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .chart .mark { cursor: default; outline: none; }
+  .chart .mark:hover, .chart .mark:focus-visible { filter: brightness(1.12); }
+  .chart .mark:focus-visible { stroke: var(--ink); stroke-width: 1.5; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 10px; border-radius: 2px; background: var(--swatch); flex: none; }
+  .legend i.dot { border-radius: 50%; }
+  .legend i.hollow { background: transparent; border: 2px solid var(--swatch); }
+  .legend i.line { height: 2px; width: 16px; border-radius: 1px; }
+  .empty { color: var(--muted); font-size: 13.5px; padding-block: 18px; }
+  details { font-size: 13px; }
+  details summary { cursor: pointer; color: var(--ink-2); width: fit-content; padding-block: 2px; }
+  details summary:hover { color: var(--ink); }
+  details[open] summary { margin-bottom: 8px; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+  details .table-wrap { border-radius: 7px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { padding: 8px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  th { font-weight: 500; color: var(--ink-2); font-size: 12px; vertical-align: bottom; background: var(--surface); }
+  th:first-child, td:first-child { text-align: left; }
+  td:first-child { font-family: var(--mono); font-size: 12.5px; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tr.selected td { background: var(--wash); }
+  tr.selected td:first-child { font-weight: 500; box-shadow: inset 2px 0 0 var(--accent); }
+  th.group { text-align: center; border-left: 1px solid var(--grid); color: var(--ink); }
+  td.sep, th.sep { border-left: 1px solid var(--grid); }
+  .counts { color: var(--muted); font-size: 12px; }
+
+  .checks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .check { background: var(--surface); padding: 14px 16px; display: grid; gap: 3px; }
+  .check .value { font-size: 22px; font-weight: 600; }
+  .check .label { font-size: 12.5px; color: var(--ink-2); }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; font: 500 11.5px/1 var(--mono); letter-spacing: 0.04em; text-transform: uppercase; padding: 5px 8px; border-radius: 99px; border: 1px solid var(--border); color: var(--ink); white-space: nowrap; width: fit-content; }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--tone); flex: none; }
+  .pill.square i { border-radius: 1px; }
+  .pill.diamond i { border-radius: 1px; transform: rotate(45deg); }
+  .pill.ring i { background: transparent; border: 2px solid var(--tone); }
+
+  .findings { display: grid; gap: 0; border-top: 1px solid var(--border); }
+  .finding { display: grid; grid-template-columns: minmax(200px, 3fr) 7fr; gap: 8px 28px; padding-block: 18px; border-bottom: 1px solid var(--border); }
+  .finding .head { display: grid; gap: 9px; align-content: start; }
+  .finding h3 { font-size: 15.5px; }
+  .finding p { color: var(--ink-2); max-width: 70ch; }
+
+  .caveats { margin: 0; padding-left: 18px; color: var(--ink-2); display: grid; gap: 8px; max-width: 80ch; }
+  footer.colophon { border-top: 1px solid var(--border); padding-top: 18px; color: var(--muted); font-size: 12.5px; }
+
+  #tip { position: fixed; z-index: 20; pointer-events: none; background: var(--ink); color: var(--plane); border-radius: 7px; padding: 8px 10px; font-size: 12.5px; line-height: 1.4; max-width: 280px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18); }
+  #tip .t-title { opacity: 0.72; margin-bottom: 3px; }
+  #tip .t-row { display: flex; justify-content: space-between; gap: 16px; }
+  #tip .t-row b { font-weight: 600; font-variant-numeric: tabular-nums; }
+  #tip .t-row span { opacity: 0.72; display: inline-flex; align-items: center; gap: 6px; }
+  #tip .t-row span i { width: 10px; height: 2px; background: var(--key); display: inline-block; }
+
+  @media (max-width: 900px) {
+    .summary { grid-template-columns: 1fr; }
+    .grid-2 { grid-template-columns: 1fr; }
+    .pipeline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .pipeline li { border-left: 0; border-top: 1px solid var(--border); }
+    .pipeline li:nth-child(even) { border-left: 1px solid var(--border); }
+    .pipeline li:nth-child(-n + 2) { border-top: 0; }
+    .checks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .finding { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 520px) {
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .seg span, .chart .mark { transition: background-color 0.12s, filter 0.12s; }
+  }
+</style>
+
+<div class="page">
+  <header class="masthead">
+    <div class="eyebrow" id="eyebrow"></div>
+    <h1>Named-entity recognition with a model that cannot write</h1>
+    <p class="lede" id="lede"></p>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <div class="controls" role="group" aria-label="What the page shows">
+    <div class="control"><span id="doc-label">Document</span><div class="seg" id="doc-seg" role="radiogroup" aria-labelledby="doc-label"></div></div>
+    <div class="control"><span id="var-label">Variant</span><div class="seg" id="var-seg" role="radiogroup" aria-labelledby="var-label"></div></div>
+  </div>
+
+  <section class="section" aria-labelledby="h-summary">
+    <header>
+      <h2 id="h-summary">What one run costs and returns</h2>
+      <p id="doc-description"></p>
+    </header>
+    <div class="summary">
+      <div class="hero">
+        <div class="eyebrow">Extraction cost</div>
+        <div class="figure" id="hero-figure"></div>
+        <div class="unit">per page, Jev calls only</div>
+        <p class="context" id="hero-context"></p>
+      </div>
+      <div class="tiles" id="tiles"></div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="h-pipeline">
+    <header>
+      <h2 id="h-pipeline">The pipeline, stage by stage</h2>
+      <p>Jev answers typed questions and never generates text, so code proposes candidates and Jev judges them. The bar under each Jev stage is its share of the run's input tokens.</p>
+    </header>
+    <ol class="pipeline" id="pipeline"></ol>
+  </section>
+
+  <section class="section" aria-labelledby="h-charts">
+    <header>
+      <h2 id="h-charts">Tokens, latency, cost and calibration</h2>
+      <p>The first chart compares all variants on the selected document. The other three follow the selected variant.</p>
+    </header>
+    <div class="grid-2">
+      <article class="panel">
+        <header><h3>Where the input tokens go</h3><p id="tokens-sub"></p></header>
+        <div class="legend" id="tokens-legend"></div>
+        <div class="chart" id="chart-tokens"></div>
+      </article>
+      <article class="panel">
+        <header><h3>Latency per call</h3><p id="latency-sub"></p></header>
+        <div class="legend" id="latency-legend"></div>
+        <div class="chart" id="chart-latency"></div>
+      </article>
+      <article class="panel">
+        <header><h3>Grading costs more than extracting</h3><p id="cost-sub"></p></header>
+        <div class="chart" id="chart-cost"></div>
+      </article>
+      <article class="panel">
+        <header><h3>Does Jev's confidence mean what it says?</h3><p id="calibration-sub"></p></header>
+        <div class="legend" id="calibration-legend"></div>
+        <div class="chart" id="chart-calibration"></div>
+      </article>
+    </div>
+    <details>
+      <summary>Per-stage numbers behind these charts</summary>
+      <div class="table-wrap"><table id="table-stages"></table></div>
+    </details>
+  </section>
+
+  <section class="section" aria-labelledby="h-accuracy">
+    <header>
+      <h2 id="h-accuracy">Accuracy</h2>
+      <p id="accuracy-sub"></p>
+    </header>
+    <div class="table-wrap"><table id="table-accuracy"></table></div>
+    <div class="table-wrap"><table id="table-gold"></table></div>
+  </section>
+
+  <section class="section" aria-labelledby="h-judge" id="judge-section">
+    <header>
+      <h2 id="h-judge">Can the judge be trusted?</h2>
+      <p id="judge-sub"></p>
+    </header>
+    <div class="checks" id="checks"></div>
+  </section>
+
+  <section class="section" aria-labelledby="h-findings">
+    <header>
+      <h2 id="h-findings">What the run showed</h2>
+      <p>Observations from this benchmark, with what was done about each.</p>
+    </header>
+    <div class="findings" id="findings"></div>
+  </section>
+
+  <section class="section" aria-labelledby="h-runs">
+    <header>
+      <h2 id="h-runs">Every variant on this document</h2>
+      <p>Means over the repetitions. Wall time shows the range in brackets.</p>
+    </header>
+    <div class="table-wrap"><table id="table-runs"></table></div>
+  </section>
+
+  <section class="section" aria-labelledby="h-caveats">
+    <header><h2 id="h-caveats">Read these numbers with care</h2></header>
+    <ul class="caveats" id="caveats"></ul>
+  </section>
+
+  <footer class="colophon" id="colophon"></footer>
+</div>
+<div id="tip" hidden></div>
+
+<script id="nerjev-data" type="application/json">/*__NERJEV_DATA__*/</script>
+<script>
+(function () {
+  "use strict";
+  var D = JSON.parse(document.getElementById("nerjev-data").textContent);
+
+  var STAGES = [
+    { id: "ner_tag", name: "Tag words", color: "--s1" },
+    { id: "ner_resolve", name: "Resolve boundaries", color: "--s2" },
+    { id: "ner_type", name: "Type phrases", color: "--s3" },
+    { id: "entity_align", name: "Merge entities", color: "--s4" },
+    { id: "relation", name: "Relate pairs", color: "--s5" }
+  ];
+  var STEPS = [
+    { name: "Read the PDF", who: "code" },
+    { name: "Tag words", who: "Jev", stage: "ner_tag" },
+    { name: "Resolve boundaries", who: "Jev", stage: "ner_resolve" },
+    { name: "Type phrases", who: "Jev", stage: "ner_type" },
+    { name: "Merge entities", who: "Jev", stage: "entity_align" },
+    { name: "Relate pairs", who: "Jev", stage: "relation" },
+    { name: "Load the graph", who: "code, Neo4j" }
+  ];
+
+  // ---------- formatting ----------
+  var NA = "n/a";
+  function isNum(v) { return typeof v === "number" && isFinite(v); }
+  function int(v) { return isNum(v) ? Math.round(v).toLocaleString("en-US") : NA; }
+  function fixed(v, d) { return isNum(v) ? v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }) : NA; }
+  function compact(v) {
+    if (!isNum(v)) return NA;
+    if (v >= 1e6) return (v / 1e6).toFixed(2) + "M";
+    if (v >= 1e4) return Math.round(v / 1e3) + "K";
+    return int(v);
+  }
+  function usd(v) {
+    if (!isNum(v)) return NA;
+    if (v === 0) return "$0";
+    return "$" + (v >= 1 ? v.toFixed(2) : String(Number(v.toPrecision(2))));
+  }
+  function pct(v, d) { return isNum(v) ? (v * 100).toFixed(d === undefined ? 1 : d) + "%" : NA; }
+  function ms(v) { return !isNum(v) ? NA : v >= 1000 ? (v / 1000).toFixed(1) + " s" : Math.round(v) + " ms"; }
+  function kib(v) { return !isNum(v) ? NA : v >= 1024 ? (v / 1024).toFixed(1) + " MiB" : Math.round(v) + " KiB"; }
+
+  // ---------- DOM helpers (all text goes in through textContent) ----------
+  function el(tag, props, children) {
+    var node = document.createElement(tag);
+    props = props || {};
+    Object.keys(props).forEach(function (key) {
+      if (key === "text") node.textContent = props[key];
+      else if (key === "class") node.className = props[key];
+      else if (key === "style") node.setAttribute("style", props[key]);
+      else node.setAttribute(key, props[key]);
+    });
+    (children || []).forEach(function (child) { if (child) node.appendChild(typeof child === "string" ? document.createTextNode(child) : child); });
+    return node;
+  }
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  function svg(tag, attrs, text) {
+    var node = document.createElementNS(SVG_NS, tag);
+    Object.keys(attrs || {}).forEach(function (key) { node.setAttribute(key, attrs[key]); });
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); return node; }
+  function byId(id) { return document.getElementById(id); }
+  function cssVar(name) { return "var(" + name + ")"; }
+
+  // ---------- tooltip ----------
+  var tip = byId("tip");
+  function showTip(event, title, rows) {
+    clear(tip);
+    tip.appendChild(el("div", { class: "t-title", text: title }));
+    rows.forEach(function (row) {
+      var label = el("span", {}, [row.key ? el("i", { style: "--key:" + row.key }) : null, row.label]);
+      tip.appendChild(el("div", { class: "t-row" }, [label, el("b", { text: row.value })]));
+    });
+    tip.hidden = false;
+    var box = tip.getBoundingClientRect();
+    var x, y;
+    if (event && event.clientX !== undefined && event.type !== "focus") { x = event.clientX + 14; y = event.clientY + 14; }
+    else { var r = event.target.getBoundingClientRect(); x = r.left + r.width / 2; y = r.bottom + 8; }
+    tip.style.left = Math.max(8, Math.min(x, window.innerWidth - box.width - 8)) + "px";
+    tip.style.top = Math.max(8, Math.min(y, window.innerHeight - box.height - 8)) + "px";
+  }
+  function hideTip() { tip.hidden = true; }
+  function interactive(node, label, title, rows) {
+    node.setAttribute("class", (node.getAttribute("class") || "") + " mark");
+    node.setAttribute("tabindex", "0");
+    node.setAttribute("role", "img");
+    node.setAttribute("aria-label", label);
+    var show = function (event) { showTip(event, title, rows); };
+    node.addEventListener("pointermove", show);
+    node.addEventListener("pointerleave", hideTip);
+    node.addEventListener("focus", show);
+    node.addEventListener("blur", hideTip);
+    return node;
+  }
+
+  // ---------- state ----------
+  var state = { doc: null, variant: null };
+  var biggest = D.documents.slice().sort(function (a, b) { return b.pages - a.pages; })[0];
+  state.doc = biggest.id;
+  state.variant = D.variants.some(function (v) { return v.name === "resolve-80"; }) ? "resolve-80" : D.variants[0].name;
+  try {
+    var saved = JSON.parse(localStorage.getItem("nerjev-dashboard") || "{}");
+    if (saved.benchmark === D.benchmark) {
+      if (D.documents.some(function (d) { return d.id === saved.doc; })) state.doc = saved.doc;
+      if (D.variants.some(function (v) { return v.name === saved.variant; })) state.variant = saved.variant;
+    }
+  } catch (e) { /* storage is a convenience only */ }
+  function remember() {
+    try { localStorage.setItem("nerjev-dashboard", JSON.stringify({ benchmark: D.benchmark, doc: state.doc, variant: state.variant })); } catch (e) { /* ignore */ }
+  }
+
+  function docInfo() { return D.documents.filter(function (d) { return d.id === state.doc; })[0]; }
+  function rowsForDoc() { return D.results.filter(function (r) { return r.docId === state.doc; }); }
+  function current() { return rowsForDoc().filter(function (r) { return r.variant === state.variant; })[0] || rowsForDoc()[0]; }
+  function stageOf(row, id) { return row.stages.filter(function (s) { return s.stage === id; })[0]; }
+
+  // ---------- controls ----------
+  function segmented(container, name, options, selected, onChange) {
+    clear(container);
+    options.forEach(function (option, i) {
+      var input = el("input", { type: "radio", name: name, id: name + "-" + i, value: option.value });
+      if (option.value === selected) input.checked = true;
+      input.addEventListener("change", function () { onChange(option.value); });
+      container.appendChild(el("label", {}, [input, el("span", { text: option.label })]));
+    });
+  }
+
+  // ---------- static header ----------
+  byId("eyebrow").textContent = "Experiment · " + D.benchmark;
+  byId("lede").textContent = D.notes.subtitle || "";
+  var meta = byId("meta");
+  [["Extractor", D.extractorModel], ["Judge", D.judgeModel || "not run"], ["Prices as of", D.pricingAsOf], ["Generated", D.generatedAt.slice(0, 10)]].forEach(function (pair) {
+    meta.appendChild(el("span", {}, [pair[0] + " ", el("b", { class: "mono", text: pair[1] })]));
+  });
+
+  // ---------- summary ----------
+  function renderSummary() {
+    var doc = docInfo(), row = current();
+    byId("doc-description").textContent = doc.description + (doc.skippedPages.length ? " Pages " + doc.skippedPages.join(" and ") + " had almost no extractable text and were skipped." : "");
+    var perPage = isNum(row.costUsd) ? row.costUsd / doc.pages : null;
+    byId("hero-figure").textContent = usd(perPage);
+    byId("hero-context").textContent = "The whole " + doc.pages + "-page document cost " + usd(row.costUsd) + " across " + int(row.calls) + " calls and finished in " + fixed(row.wallSeconds.mean, 1) + " s.";
+
+    var acc = row.accuracy;
+    var tiles = [
+      { label: "Speed", value: fixed(row.pagesPerMinute, 0), note: "pages per minute" },
+      { label: "Input tokens per page", value: compact(row.inputTokens / doc.pages), note: compact(row.inputTokens) + " in the run" },
+      { label: "Payload per page", value: kib(row.payloadKiB / doc.pages), note: "sent and received, for " + fixed(doc.characters / doc.pages / 1024, 1) + " KiB of text" },
+      { label: "Entity F1, judged", value: acc ? pct(acc.entityStrict.f1) : NA, note: acc ? acc.entityStrict.tp + " right, " + acc.entityStrict.fp + " wrong, " + acc.entityStrict.fn + " missed" : "this run was not judged" },
+      { label: "Relation F1, judged", value: acc ? pct(acc.relation.f1) : NA, note: acc ? acc.relation.tp + " right, " + acc.relation.fp + " wrong, " + acc.relation.fn + " missed" : "this run was not judged" },
+      { label: "Held for review", value: pct(row.counts.mentions ? row.counts.review / row.counts.mentions : null, 0), note: row.counts.review + " of " + row.counts.mentions + " mentions below the accept threshold" }
+    ];
+    var host = clear(byId("tiles"));
+    tiles.forEach(function (t) {
+      host.appendChild(el("div", { class: "tile" }, [el("div", { class: "label", text: t.label }), el("div", { class: "value", text: t.value }), el("div", { class: "note", text: t.note })]));
+    });
+  }
+
+  // ---------- pipeline ----------
+  function renderPipeline() {
+    var row = current(), host = clear(byId("pipeline"));
+    var total = row.stages.reduce(function (sum, s) { return sum + s.inputTokensPerRun; }, 0) || 1;
+    STEPS.forEach(function (step, i) {
+      var li = el("li", {}, [el("div", { class: "step", text: "STEP " + (i + 1) }), el("div", { class: "name", text: step.name })]);
+      var s = step.stage && stageOf(row, step.stage);
+      li.appendChild(el("div", { class: "who", text: step.stage ? "Jev · " + step.stage : step.who }));
+      if (step.stage && !s) li.appendChild(el("div", { class: "stat", text: "skipped in this variant" }));
+      if (s) {
+        var color = STAGES.filter(function (x) { return x.id === step.stage; })[0].color;
+        li.appendChild(el("div", { class: "stat" }, [el("b", { text: fixed(s.callsPerRun, s.callsPerRun % 1 ? 1 : 0) }), " calls · p50 ", el("b", { text: ms(s.latencyP50) })]));
+        li.appendChild(el("div", { class: "stat", text: pct(s.inputTokensPerRun / total, 1) + " of tokens" }));
+        li.appendChild(el("div", { class: "share", style: "--swatch:" + cssVar(color) }, [el("i", { style: "width:" + Math.max(1, (s.inputTokensPerRun / total) * 100) + "%" })]));
+      }
+      host.appendChild(li);
+    });
+  }
+
+  // ---------- chart scaffolding ----------
+  function niceMax(v) {
+    if (!(v > 0)) return 1;
+    var pow = Math.pow(10, Math.floor(Math.log10(v)));
+    var steps = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+    for (var i = 0; i < steps.length; i++) if (steps[i] * pow >= v) return steps[i] * pow;
+    return 10 * pow;
+  }
+  function tickCount(max) {
+    var lead = Math.round((max / Math.pow(10, Math.floor(Math.log10(max)))) * 10) / 10;
+    if (lead === 1.5 || lead === 3 || lead === 6) return 3;
+    if (lead === 2.5 || lead === 5 || lead === 10 || lead === 1) return 5;
+    return 4;
+  }
+  function widthOf(host) { return Math.max(300, Math.floor(host.getBoundingClientRect().width) || 520); }
+  function xAxis(root, x0, x1, top, bottom, max, format, ticks) {
+    for (var i = 0; i <= ticks; i++) {
+      var x = x0 + ((x1 - x0) * i) / ticks;
+      root.appendChild(svg("line", { x1: x, x2: x, y1: top, y2: bottom, stroke: i === 0 ? cssVar("--axis") : cssVar("--grid"), "stroke-width": 1 }));
+      root.appendChild(svg("text", { x: x, y: bottom + 16, "text-anchor": i === 0 ? "start" : i === ticks ? "end" : "middle", class: "tick" }, format((max * i) / ticks)));
+    }
+  }
+  function legend(host, items) {
+    clear(host);
+    items.forEach(function (item) {
+      host.appendChild(el("span", {}, [el("i", { class: item.shape || "", style: "--swatch:" + item.color }), item.label]));
+    });
+  }
+  function emptyChart(host, message) { clear(host).appendChild(el("p", { class: "empty", text: message })); }
+
+  // ---------- chart: tokens by stage, every variant ----------
+  function renderTokens() {
+    var host = byId("chart-tokens"), rows = rowsForDoc();
+    legend(byId("tokens-legend"), STAGES.map(function (s) { return { label: s.name, color: cssVar(s.color) }; }));
+    var tag = stageOf(current(), "ner_tag");
+    var total = current().stages.reduce(function (sum, s) { return sum + s.inputTokensPerRun; }, 0) || 1;
+    byId("tokens-sub").textContent = tag
+      ? "Tagging asks one question per word, and each question repeats the list of entity kinds: about " + int(tag.inputTokensPerRun / Math.max(1, tag.questionsPerRun)) + " tokens per word. It is " + pct(tag.inputTokensPerRun / total, 0) + " of this run."
+      : "";
+    var W = widthOf(host), left = 96, right = 58, rowH = 38, bar = 20, top = 6;
+    var H = top + rows.length * rowH + 26;
+    var max = niceMax(Math.max.apply(null, rows.map(function (r) { return r.inputTokens; })));
+    var x0 = left, x1 = W - right, scale = (x1 - x0) / max;
+    var root = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "group", "aria-label": "Input tokens per run by stage, one bar per variant" });
+    xAxis(root, x0, x1, top, top + rows.length * rowH, max, compact, tickCount(max));
+    rows.forEach(function (row, i) {
+      var y = top + i * rowH + (rowH - bar) / 2, x = x0;
+      root.appendChild(svg("text", { x: x0 - 10, y: y + bar / 2 + 4, "text-anchor": "end", class: row.variant === state.variant ? "strong" : "" }, row.variant));
+      var drawn = STAGES.map(function (s) { return { def: s, data: stageOf(row, s.id) }; }).filter(function (s) { return s.data; });
+      drawn.forEach(function (s, k) {
+        var w = s.data.inputTokensPerRun * scale, last = k === drawn.length - 1;
+        var visible = Math.max(0, w - (last ? 0 : 2));
+        if (visible >= 0.5) {
+          var shape = last
+            ? svg("path", { d: "M" + x + "," + y + "h" + Math.max(0, visible - 4) + "a4,4 0 0 1 4,4v" + (bar - 8) + "a4,4 0 0 1 -4,4h-" + Math.max(0, visible - 4) + "z", fill: cssVar(s.def.color) })
+            : svg("rect", { x: x, y: y, width: visible, height: bar, fill: cssVar(s.def.color) });
+          interactive(shape, row.variant + ", " + s.def.name + ": " + int(s.data.inputTokensPerRun) + " input tokens", row.variant + " · " + s.def.name, [
+            { label: "Input tokens", value: int(s.data.inputTokensPerRun) },
+            { label: "Share of run", value: pct(s.data.inputTokensPerRun / row.inputTokens, 1) },
+            { label: "Calls", value: fixed(s.data.callsPerRun, 1) },
+            { label: "Cost", value: usd(s.data.costPerRun) }
+          ]);
+          root.appendChild(shape);
+        }
+        x += w;
+      });
+      root.appendChild(svg("text", { x: x + 8, y: y + bar / 2 + 4, class: row.variant === state.variant ? "strong" : "" }, compact(row.inputTokens)));
+    });
+    clear(host).appendChild(root);
+  }
+
+  // ---------- chart: latency dumbbell, selected variant ----------
+  function renderLatency() {
+    var host = byId("chart-latency"), row = current();
+    legend(byId("latency-legend"), [{ label: "p50", color: cssVar("--accent"), shape: "dot" }, { label: "p95", color: cssVar("--accent"), shape: "dot hollow" }]);
+    byId("latency-sub").textContent = "Each Jev call answers up to about 80 questions in parallel, so latency barely grows with the number of questions." +
+      (row.judge ? " For scale, one " + D.judgeModel + " judge call took " + ms(row.judge.latencyP50) + " at p50." : "");
+    var stages = STAGES.map(function (s) { return { def: s, data: stageOf(row, s.id) }; }).filter(function (s) { return s.data && isNum(s.data.latencyP50); });
+    if (!stages.length) return emptyChart(host, "No latency was recorded for this run.");
+    var W = widthOf(host), left = 132, right = 92, rowH = 34, top = 6, H = top + stages.length * rowH + 26;
+    var max = niceMax(Math.max.apply(null, stages.map(function (s) { return s.data.latencyP95 || s.data.latencyP50; })));
+    var x0 = left, x1 = W - right, scale = (x1 - x0) / max;
+    var root = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "group", "aria-label": "Latency per call by stage, p50 and p95" });
+    xAxis(root, x0, x1, top, top + stages.length * rowH, max, function (v) { return Math.round(v) + (v === max ? " ms" : ""); }, tickCount(max));
+    stages.forEach(function (s, i) {
+      var y = top + i * rowH + rowH / 2, a = x0 + s.data.latencyP50 * scale, b = x0 + (s.data.latencyP95 || s.data.latencyP50) * scale;
+      root.appendChild(svg("text", { x: x0 - 10, y: y + 4, "text-anchor": "end" }, s.def.name));
+      root.appendChild(svg("line", { x1: a, x2: b, y1: y, y2: y, stroke: cssVar("--deemph"), "stroke-width": 2, "stroke-linecap": "round" }));
+      var rows = [{ label: "p50", value: ms(s.data.latencyP50) }, { label: "p95", value: ms(s.data.latencyP95) }, { label: "Questions per call", value: int(s.data.questionsMedian) }];
+      [[b, "p95"], [a, "p50"]].forEach(function (dot) {
+        var hollow = dot[1] === "p95";
+        var hit = svg("circle", { cx: dot[0], cy: y, r: 12, fill: "transparent" });
+        var mark = svg("circle", { cx: dot[0], cy: y, r: hollow ? 4.5 : 5, fill: cssVar(hollow ? "--surface" : "--accent"), stroke: cssVar(hollow ? "--accent" : "--surface"), "stroke-width": 2, "pointer-events": "none" });
+        interactive(hit, s.def.name + " " + dot[1] + " latency " + ms(hollow ? s.data.latencyP95 : s.data.latencyP50), s.def.name, rows);
+        root.appendChild(mark);
+        root.appendChild(hit);
+      });
+      root.appendChild(svg("text", { x: x1 + 10, y: y + 4, class: "tick" }, Math.round(s.data.latencyP50) + " · " + Math.round(s.data.latencyP95 || 0)));
+    });
+    clear(host).appendChild(root);
+  }
+
+  // ---------- chart: extraction vs judge cost per chunk ----------
+  function renderCost() {
+    var host = byId("chart-cost"), row = current();
+    if (!row.judge || !isNum(row.judge.costUsd) || !isNum(row.costUsd)) {
+      byId("cost-sub").textContent = "The judge did not run on this variant, so there is nothing to compare.";
+      return emptyChart(host, "No judge calls were recorded for this run.");
+    }
+    var extraction = row.costUsd / Math.max(1, row.counts.chunks);
+    var judging = row.judge.costUsd / Math.max(1, row.judge.calls);
+    byId("cost-sub").textContent = "Per chunk of text, " + D.judgeModel + " costs about " + Math.round(judging / extraction) + " times what Jev costs to extract it. The judge graded " + row.judge.chunksJudged + " of " + row.counts.chunks + " chunks here, for " + usd(row.judge.costUsd) + " in total.";
+    var items = [
+      { label: "Extract one chunk", sub: D.extractorModel, value: extraction, color: "--accent" },
+      { label: "Judge one chunk", sub: D.judgeModel, value: judging, color: "--deemph" }
+    ];
+    var W = widthOf(host), left = 132, right = 70, rowH = 46, bar = 20, top = 6, H = top + items.length * rowH + 26;
+    var max = niceMax(Math.max(extraction, judging)), x0 = left, x1 = W - right, scale = (x1 - x0) / max;
+    var root = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "group", "aria-label": "Cost per chunk: extraction and judging" });
+    xAxis(root, x0, x1, top, top + items.length * rowH, max, function (v) { return "$" + Number(v.toPrecision(2)); }, tickCount(max));
+    items.forEach(function (item, i) {
+      var y = top + i * rowH + (rowH - bar) / 2, w = Math.max(2, item.value * scale);
+      root.appendChild(svg("text", { x: x0 - 10, y: y + 9, "text-anchor": "end", class: "strong" }, item.label));
+      root.appendChild(svg("text", { x: x0 - 10, y: y + 23, "text-anchor": "end", class: "tick" }, item.sub));
+      var r = Math.min(4, w / 2);
+      var shape = svg("path", { d: "M" + x0 + "," + y + "h" + (w - r) + "a" + r + "," + r + " 0 0 1 " + r + "," + r + "v" + (bar - 2 * r) + "a" + r + "," + r + " 0 0 1 -" + r + "," + r + "h-" + (w - r) + "z", fill: cssVar(item.color) });
+      interactive(shape, item.label + ": " + usd(item.value), item.label, [{ label: "Cost per chunk", value: usd(item.value) }, { label: "Model", value: item.sub }]);
+      root.appendChild(shape);
+      root.appendChild(svg("text", { x: x0 + w + 8, y: y + bar / 2 + 4, class: "strong" }, usd(item.value)));
+    });
+    clear(host).appendChild(root);
+  }
+
+  // ---------- chart: calibration ----------
+  function renderCalibration() {
+    var host = byId("chart-calibration"), row = current(), acc = row.accuracy;
+    legend(byId("calibration-legend"), [{ label: "Share the judge marked correct", color: cssVar("--accent") }, { label: "Perfect calibration", color: cssVar("--muted"), shape: "line" }]);
+    if (!acc || !acc.calibration.mentions.bins.length) {
+      byId("calibration-sub").textContent = "Calibration needs judge verdicts, and this run has none.";
+      return emptyChart(host, "No judged mentions for this run.");
+    }
+    var cal = acc.calibration.mentions;
+    byId("calibration-sub").textContent = "Mentions grouped by Jev's confidence, against how often the judge agreed. A bar on the line means the confidence can be taken at face value. Expected calibration error: " + fixed(cal.ece, 3) + " over " + cal.count + " mentions.";
+    var bins = cal.bins, first = Math.min(0.4, bins[0].from), W = widthOf(host), left = 44, right = 14, top = 10, plotH = 170, H = top + plotH + 44;
+    var x0 = left, x1 = W - right, span = 1 - first, bw = (x1 - x0) / Math.round(span * 10);
+    var root = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "group", "aria-label": "Judged accuracy by confidence bin" });
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (v) {
+      var y = top + plotH * (1 - v);
+      root.appendChild(svg("line", { x1: x0, x2: x1, y1: y, y2: y, stroke: v === 0 ? cssVar("--axis") : cssVar("--grid"), "stroke-width": 1 }));
+      root.appendChild(svg("text", { x: x0 - 8, y: y + 4, "text-anchor": "end", class: "tick" }, Math.round(v * 100) + "%"));
+    });
+    root.appendChild(svg("line", { x1: x0, y1: top + plotH * (1 - first), x2: x1, y2: top, stroke: cssVar("--muted"), "stroke-width": 2, "stroke-linecap": "round" }));
+    bins.forEach(function (bin) {
+      var cx = x0 + ((bin.from - first) / span) * (x1 - x0) + bw / 2, w = Math.min(24, bw - 8), h = Math.max(1, bin.accuracy * plotH), y = top + plotH - h, r = Math.min(4, h / 2, w / 2);
+      var shape = svg("path", { d: "M" + (cx - w / 2) + "," + (top + plotH) + "v-" + (h - r) + "a" + r + "," + r + " 0 0 1 " + r + ",-" + r + "h" + (w - 2 * r) + "a" + r + "," + r + " 0 0 1 " + r + "," + r + "v" + (h - r) + "z", fill: cssVar("--accent") });
+      var range = bin.from.toFixed(1) + "–" + bin.to.toFixed(1);
+      interactive(shape, "Confidence " + range + ": " + pct(bin.accuracy, 0) + " correct of " + bin.count, "Confidence " + range, [
+        { label: "Judged correct", value: pct(bin.accuracy, 1) },
+        { label: "Mean confidence", value: fixed(bin.meanConfidence, 2) },
+        { label: "Mentions", value: int(bin.count) }
+      ]);
+      root.appendChild(shape);
+      root.appendChild(svg("text", { x: cx, y: top + plotH + 16, "text-anchor": "middle", class: "tick" }, range));
+      root.appendChild(svg("text", { x: cx, y: top + plotH + 31, "text-anchor": "middle", class: "tick" }, "n=" + bin.count));
+    });
+    clear(host).appendChild(root);
+  }
+
+  // ---------- tables ----------
+  function table(host, head, body, selectedIndex) {
+    clear(host);
+    var thead = el("thead");
+    head.forEach(function (cells) {
+      thead.appendChild(el("tr", {}, cells.map(function (c) {
+        var props = { text: c.text, scope: "col" };
+        if (c.span) props.colspan = c.span;
+        if (c.cls) props.class = c.cls;
+        return el("th", props);
+      })));
+    });
+    var tbody = el("tbody");
+    body.forEach(function (cells, i) {
+      tbody.appendChild(el("tr", i === selectedIndex ? { class: "selected" } : {}, cells.map(function (c) {
+        return typeof c === "string" ? el("td", { text: c }) : el("td", { text: c.text, class: c.cls || "" });
+      })));
+    });
+    host.appendChild(thead);
+    host.appendChild(tbody);
+  }
+  function prfCells(m, sep) {
+    if (!m) return [{ text: NA, cls: sep ? "sep" : "" }, NA, NA, NA];
+    return [{ text: pct(m.precision), cls: sep ? "sep" : "" }, pct(m.recall), pct(m.f1), { text: m.tp + " / " + m.fp + " / " + m.fn, cls: "counts" }];
+  }
+  function selectedIndex(rows) { return rows.map(function (r) { return r.variant; }).indexOf(state.variant); }
+
+  function renderAccuracy() {
+    var rows = rowsForDoc(), any = rows.some(function (r) { return r.accuracy; });
+    var sampled = rows.filter(function (r) { return r.accuracy; }).map(function (r) { return r.judge.chunksJudged + " of " + r.counts.chunks; });
+    byId("accuracy-sub").textContent = any
+      ? "Graded by " + D.judgeModel + " on the first repetition of each variant (chunks judged: " + sampled.join(", ") + "). Strict means the boundary and the type are both right. Recall is an estimate, because the list of misses is the judge's own. The counts are right / wrong / missed: with small counts one item moves a percentage by a point or more."
+      : "The judge did not run on this document.";
+    table(byId("table-accuracy"), [
+      [{ text: "" }, { text: "Entities, strict", span: 4, cls: "group" }, { text: "Relations", span: 4, cls: "group" }, { text: "", span: 4, cls: "group" }],
+      [{ text: "Variant" }, { text: "P", cls: "sep" }, { text: "R" }, { text: "F1" }, { text: "counts" }, { text: "P", cls: "sep" }, { text: "R" }, { text: "F1" }, { text: "counts" }, { text: "Relaxed F1", cls: "sep" }, { text: "Type acc." }, { text: "ECE" }, { text: "Judge agreement" }]
+    ], rows.map(function (r) {
+      var a = r.accuracy;
+      return [r.variant].concat(prfCells(a && a.entityStrict, true), prfCells(a && a.relation, true), [
+        { text: a ? pct(a.entityRelaxed.f1) : NA, cls: "sep" }, a ? pct(a.typeAccuracy) : NA, a ? fixed(a.calibration.mentions.ece, 3) : NA, a ? pct(a.judge.selfAgreement) : NA
+      ]);
+    }), selectedIndex(rows));
+
+    var names = D.variants.map(function (v) { return v.name; }).filter(function (n) { return D.gold.scores[n]; });
+    table(byId("table-gold"), [
+      [{ text: "" }, { text: "Gold entities, exact match", span: 4, cls: "group" }, { text: "Gold relations, exact match", span: 4, cls: "group" }],
+      [{ text: "Variant, on " + D.gold.passages + " hand-labelled passages" }, { text: "P", cls: "sep" }, { text: "R" }, { text: "F1" }, { text: "counts" }, { text: "P", cls: "sep" }, { text: "R" }, { text: "F1" }, { text: "counts" }]
+    ], names.map(function (n) { return [n].concat(prfCells(D.gold.scores[n].entity, true), prfCells(D.gold.scores[n].relation, true)); }), names.indexOf(state.variant));
+  }
+
+  function renderRuns() {
+    var rows = rowsForDoc(), pages = docInfo().pages;
+    table(byId("table-runs"), [[
+      { text: "Variant" }, { text: "Reps" }, { text: "Calls" }, { text: "Input tokens" }, { text: "Tokens / page" }, { text: "Wall time" }, { text: "Pages / min" },
+      { text: "Cost" }, { text: "Cost / page" }, { text: "Payload" }, { text: "Mentions" }, { text: "In review" }, { text: "Entities" }, { text: "Relations" }, { text: "Retry / 429 / fail" }
+    ]], rows.map(function (r) {
+      var bad = r.stages.reduce(function (t, s) { return [t[0] + s.retried, t[1] + s.rateLimited, t[2] + s.failed]; }, [0, 0, 0]);
+      return [r.variant, String(r.repetitions), fixed(r.calls, 1), int(r.inputTokens), int(r.inputTokens / pages),
+        fixed(r.wallSeconds.mean, 1) + " s [" + fixed(r.wallSeconds.min, 1) + "–" + fixed(r.wallSeconds.max, 1) + "]", fixed(r.pagesPerMinute, 0),
+        usd(r.costUsd), usd(isNum(r.costUsd) ? r.costUsd / pages : null), kib(r.payloadKiB), int(r.counts.mentions), pct(r.counts.mentions ? r.counts.review / r.counts.mentions : null, 0),
+        int(r.counts.entities), int(r.counts.graphRelations), bad.join(" / ")];
+    }), selectedIndex(rows));
+  }
+
+  function renderStages() {
+    var row = current();
+    var body = row.stages.map(function (s) {
+      var name = STAGES.filter(function (x) { return x.id === s.stage; })[0].name;
+      return [name, fixed(s.callsPerRun, 1), int(s.inputTokensPerRun), int(s.questionsMedian), ms(s.latencyP50), ms(s.latencyP95), fixed(s.requestKiBPerCall, 1), fixed(s.responseKiBPerCall, 1), usd(s.costPerRun), s.retried + " / " + s.rateLimited + " / " + s.failed];
+    });
+    if (row.judge) body.push(["Judge (" + D.judgeModel + ")", String(row.judge.calls), int(row.judge.inputTokens), NA, ms(row.judge.latencyP50), ms(row.judge.latencyP95), NA, NA, usd(row.judge.costUsd), NA]);
+    table(byId("table-stages"), [[{ text: "Stage, " + row.variant }, { text: "Calls / run" }, { text: "Input tokens / run" }, { text: "Questions / call" }, { text: "p50" }, { text: "p95" }, { text: "Request KiB / call" }, { text: "Response KiB / call" }, { text: "Cost / run" }, { text: "Retried / limited / failed" }]], body, -1);
+  }
+
+  // ---------- judge check, findings, caveats ----------
+  var TONES = { fixed: ["--good", ""], open: ["--warning", "diamond"], "by design": ["--deemph", "square"], finding: ["--accent", "ring"] };
+  function pill(status) {
+    var tone = TONES[status] || TONES.finding;
+    return el("span", { class: "pill " + tone[1] }, [el("i", { style: "--tone:" + cssVar(tone[0]) }), status]);
+  }
+  function renderStatic() {
+    var check = D.judgeCheck, section = byId("judge-section");
+    if (!check) section.hidden = true;
+    else {
+      byId("judge-sub").textContent = "Before its scores were used, " + check.judgeModel + " graded the " + check.passages + " hand-labelled passages four ways: with the correct labels, with every type shuffled, with another passage's entities, and with nothing extracted. " + (check.passed ? "It passed every check." : "It failed at least one check, so treat judged accuracy with suspicion.");
+      var n = check.negatives, host = clear(byId("checks"));
+      [[check.goldAgreement.agreed + " / " + check.goldAgreement.total, "verdicts agree with the human labels"],
+        [n.shuffledTypesCaught.caught + " / " + n.shuffledTypesCaught.total, "shuffled types caught as wrong"],
+        [n.foreignExtractionCaught.caught + " / " + n.foreignExtractionCaught.total, "entities from another passage rejected"],
+        [n.emptyExtractionMissesFound.found + " / " + n.emptyExtractionMissesFound.total, "missing entities listed when nothing was extracted"]
+      ].forEach(function (c) { host.appendChild(el("div", { class: "check" }, [el("div", { class: "value num", text: c[0] }), el("div", { class: "label", text: c[1] })])); });
+    }
+    var findings = clear(byId("findings"));
+    D.notes.findings.forEach(function (f) {
+      findings.appendChild(el("div", { class: "finding" }, [el("div", { class: "head" }, [pill(f.status), el("h3", { text: f.title })]), el("p", { text: f.detail })]));
+    });
+    var caveats = clear(byId("caveats"));
+    D.notes.caveats.forEach(function (c) { caveats.appendChild(el("li", { text: c })); });
+    byId("colophon").textContent = "Built by `nerjev dashboard` from " + D.benchmark + ". Every figure comes from recorded API responses; cost is computed from recorded tokens and the price table, so judge cost and extraction cost are never mixed.";
+  }
+
+  // ---------- wiring ----------
+  function renderAll() {
+    renderSummary(); renderPipeline(); renderTokens(); renderLatency(); renderCost(); renderCalibration(); renderAccuracy(); renderRuns(); renderStages();
+  }
+  function renderControls() {
+    segmented(byId("doc-seg"), "doc", D.documents.map(function (d) { return { value: d.id, label: d.label + " · " + d.pages + " pp" }; }), state.doc, function (v) { state.doc = v; remember(); renderAll(); });
+    segmented(byId("var-seg"), "variant", D.variants.map(function (v) { return { value: v.name, label: v.name }; }), state.variant, function (v) { state.variant = v; remember(); renderAll(); });
+  }
+  renderControls();
+  renderStatic();
+  renderAll();
+
+  var pending = false;
+  new ResizeObserver(function () {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(function () { pending = false; renderTokens(); renderLatency(); renderCost(); renderCalibration(); });
+  }).observe(byId("chart-tokens"));
+  window.addEventListener("scroll", hideTip, { passive: true });
+})();
+</script>

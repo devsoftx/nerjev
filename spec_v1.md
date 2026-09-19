@@ -80,7 +80,8 @@ order. Output is
 
 ### 3.2 Normalize, split, tokenize, chunk
 
-- Normalize: rejoin words hyphenated across line breaks, collapse hard line wraps inside
+- Normalize: rejoin words hyphenated across line breaks (a hyphen followed by a capital
+  keeps the hyphen: "Al-" / "Qaida" is "Al-Qaida"), collapse hard line wraps inside
   paragraphs, strip repeated headers and footers, and give a heading its own paragraph. A
   heading has no full stop, so "Item 10" would otherwise fuse with the sentence under it;
   a short unpunctuated line followed by a capitalized line is treated as a heading.
@@ -129,9 +130,12 @@ Decision in code: `pEntity = 1 − P(none)`. A token is an entity token when
 `pEntity ≥ 0.5`, and its type is the highest-probability option other than `none`.
 
 **3b. Assemble spans.** Adjacent entity tokens of the same type merge into one span. The
-joiners `&`, `-`, `'`, `’` and `/` bridge a merge; a sentence boundary never does. A
-span never starts with an article: a lowercase "the", "a" or "an", or a capitalized one
-that opens its sentence. "in The Hague" keeps its article because it is mid-sentence.
+joiners `&`, `-`, `'` and `’` bridge a merge; a sentence boundary never does, and neither
+does a slash, which separates alternatives ("Al-Qaida/ISIL" is two organizations). A span
+never starts with a lowercase article, preposition or conjunction ("of the Council…" is
+"Council…"), nor with a capitalized article that opens its sentence. "in The Hague" keeps
+its article because it is mid-sentence. The slash and preposition rules came from the
+first real document.
 
 **3c. Resolve spans.** Two requests per chunk, in order:
 
@@ -278,10 +282,12 @@ graph database means one new class (open question 2).
 | `nerjev judge-check` | Checks the judge against the gold labels and the known negatives of section 7 |
 | `nerjev bench` | Runs variants × documents × repetitions and writes the report. `--judge` adds judged accuracy |
 | `nerjev report <benchDir>` | Rebuilds a benchmark's report from saved data with no API calls, for use after a price change |
+| `nerjev dashboard <benchDir>` | Builds a self-contained HTML dashboard of a benchmark, with optional findings and judge calibration |
 | `nerjev inspect <pdf> --chunk N` | Prints the exact Jev request JSON for one chunk, ready to paste into the TypeSafe Playground |
 
 Common flags: `--schema <file>`, `--out <dir>`, `--model <id>`, `--concurrency <n>`
-(default 6), `--no-resolve` (skip 3c), `--include-review`, `--no-cache`, `--json`.
+(default 6), `--no-resolve` (skip 3c), `--accept <p>` and `--review <p>` (confidence
+thresholds), `--include-review`, `--no-cache`, `--json`.
 Exit code 0 on success, 1 on a failed stage, 2 on bad input or missing keys.
 
 ## 6. Tech stack and layout

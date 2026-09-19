@@ -1,0 +1,25 @@
+{
+  "judgeModel": "claude-opus-5",
+  "passages": 12,
+  "goldAgreement": {
+    "agreed": 94,
+    "total": 94,
+    "rate": 1
+  },
+  "negatives": {
+    "shuffledTypesCaught": {
+      "caught": 55,
+      "total": 55
+    },
+    "foreignExtractionCaught": {
+      "caught": 55,
+      "total": 55
+    },
+    "emptyExtractionMissesFound": {
+      "found": 54,
+      "total": 55
+    }
+  },
+  "errors": [],
+  "passed": true
+}

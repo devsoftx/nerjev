@@ -3,13 +3,14 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { Command, InvalidArgumentError } from "commander";
 import pLimit from "p-limit";
+import { buildDashboardData, type DashboardNotes, renderDashboard } from "./bench/dashboard.js";
 import { loadPricing } from "./bench/pricing.js";
 import { Recorder } from "./bench/recorder.js";
 import { callStats } from "./bench/report.js";
 import { rebuildReport, runBenchmark, VARIANTS } from "./bench/runner.js";
 import { createAnthropic, createTypeSafe, jevModel, judgeModel, loadEnv, MissingKeyError } from "./clients.js";
 import { evaluateRun, loadRun } from "./eval/evaluate.js";
-import { checkJudge, loadGold, scoreAgainstGold, sumScores } from "./eval/gold.js";
+import { checkJudge, type JudgeCheck, loadGold, scoreAgainstGold, sumScores } from "./eval/gold.js";
 import { Judge } from "./eval/judge.js";
 import { CypherExportStore } from "./graph/cypherExport.js";
 import { Neo4jStore, neo4jConfigFromEnv } from "./graph/neo4j.js";
@@ -29,6 +30,12 @@ class BadInput extends Error {}
 
 const log = (message: string) => process.stderr.write(`${message}\n`);
 
+function probability(value: string): number {
+  const p = Number(value);
+  if (!(p >= 0 && p <= 1)) throw new InvalidArgumentError("expected a number between 0 and 1");
+  return p;
+}
+
 function positiveInt(value: string): number {
   const n = Number.parseInt(value, 10);
   if (!Number.isInteger(n) || n < 1) throw new InvalidArgumentError("expected a positive integer");
@@ -42,6 +49,8 @@ interface CommonFlags {
   concurrency: number;
   chunkSize: number;
   resolve: boolean;
+  accept: number;
+  review: number;
   includeReview: boolean;
   cache: boolean;
   json: boolean;
@@ -55,6 +64,8 @@ function withCommon(command: Command): Command {
     .option("--concurrency <n>", "requests in flight", positiveInt, DEFAULT_OPTIONS.concurrency)
     .option("--chunk-size <n>", "askable tokens per chunk", positiveInt, DEFAULT_OPTIONS.chunkSize)
     .option("--no-resolve", "skip span resolution (stage 3c)")
+    .option("--accept <p>", "confidence at or above which a mention or relation is accepted", probability, DEFAULT_OPTIONS.thresholds.accept)
+    .option("--review <p>", "confidence below which a mention or relation is dropped; between the two it is kept for review", probability, DEFAULT_OPTIONS.thresholds.review)
     .option("--include-review", "keep review-band mentions and relations", false)
     .option("--no-cache", "call the API even when a cached answer exists")
     .option("--json", "print the result as JSON on stdout", false);
@@ -68,6 +79,7 @@ function pipelineOptions(flags: CommonFlags): PipelineOptions {
     model: flags.model ?? jevModel(),
     chunkSize: flags.chunkSize,
     resolve: flags.resolve,
+    thresholds: { ...DEFAULT_OPTIONS.thresholds, accept: flags.accept, review: Math.min(flags.review, flags.accept) },
     includeReview: flags.includeReview,
     concurrency: flags.concurrency,
     cacheDir: flags.cache ? ".cache/jev" : null,
@@ -269,6 +281,25 @@ program
     if (!existsSync(join(benchDir, "runs"))) throw new BadInput(`${benchDir} is not a benchmark directory`);
     const { reportPath, csvPath } = rebuildReport(benchDir, loadPricing());
     log(`report: ${reportPath}\nsummary: ${csvPath}`);
+  });
+
+program
+  .command("dashboard <benchDir>")
+  .description("build a self-contained HTML dashboard from a finished benchmark, with no API calls")
+  .option("--notes <file>", "JSON with a subtitle, document labels, findings and caveats to show")
+  .option("--judge-check <file>", "output of `judge-check` to include")
+  .option("--out <file>", "where to write the page (default: <benchDir>/dashboard.html)")
+  .action((benchDir: string, flags: { notes?: string; judgeCheck?: string; out?: string }) => {
+    if (!existsSync(join(benchDir, "runs"))) throw new BadInput(`${benchDir} is not a benchmark directory`);
+    const readJson = <T>(path: string): T => {
+      if (!existsSync(path)) throw new BadInput(`no such file: ${path}`);
+      return JSON.parse(readFileSync(path, "utf8")) as T;
+    };
+    const notes: DashboardNotes = flags.notes ? readJson<DashboardNotes>(flags.notes) : { findings: [], caveats: [] };
+    const judgeCheck = flags.judgeCheck ? readJson<JudgeCheck>(flags.judgeCheck) : null;
+    const out = flags.out ?? join(benchDir, "dashboard.html");
+    writeFileSync(out, renderDashboard(buildDashboardData(benchDir, loadPricing(), notes, judgeCheck)));
+    log(`dashboard: ${out}`);
   });
 
 program

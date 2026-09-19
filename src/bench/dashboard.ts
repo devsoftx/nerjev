@@ -28,6 +28,7 @@ interface StageRow {
   latencyP50: number | null;
   latencyP95: number | null;
   questionsMedian: number | null;
+  questionsPerRun: number;
   requestKiBPerCall: number;
   responseKiBPerCall: number;
   costPerRun: number | null;
@@ -127,6 +128,7 @@ export function buildDashboardData(benchDir: string, pricing: PriceTable, notes:
         latencyP50: s.latencyP50,
         latencyP95: s.latencyP95,
         questionsMedian: s.questionsMedian,
+        questionsPerRun: calls.reduce((sum, c) => sum + (c.cached ? 0 : (c.questionCount ?? 0)), 0) / group.length,
         requestKiBPerCall: kib(s.requestBytes) / Math.max(1, s.calls),
         responseKiBPerCall: kib(s.responseBytes) / Math.max(1, s.calls),
         costPerRun: s.cost === null ? null : s.cost / group.length,

@@ -1,0 +1,82 @@
+{
+  "subtitle": "Jev answers typed questions and cannot generate text, so this pipeline asks it one small question per word, then one per candidate name, entity pair and relation. This benchmark measures what that costs and how well it works, on a fictional newsletter and on a real 15-page IMF board paper, with claude-opus-5 grading the output.",
+  "documents": {
+    "66d96fc5cb0dd906": {
+      "label": "IMF board paper",
+      "description": "A real 15-page IMF Executive Board information paper in which Germany notifies the Fund of EU sanctions regulations: dense legal citations, dates, countries and listed organisations. Nothing was tuned on it."
+    },
+    "2b2a1f91b7230943": {
+      "label": "Sample newsletter",
+      "description": "A 3-page fictional newsletter generated from the 12 gold passages. The prompts were tuned on this text, so it shows the ceiling and not what to expect from a new document."
+    }
+  },
+  "findings": [
+    {
+      "status": "finding",
+      "title": "A real document is much harder than the sample",
+      "detail": "On the IMF paper the default variant scores a judged entity F1 of 73.3% (66 right, 8 wrong, 40 missed), against 97.1% on the newsletter the prompts were tuned on. Precision holds up at 89.2%. Recall is what falls, to 62.3%."
+    },
+    {
+      "status": "open",
+      "title": "The accept threshold costs the recall, not the tagger",
+      "detail": "31 of those 40 misses are real entities that Jev found and scored between 0.40 and 0.70, so they were held for review instead of accepted. Most are \"EU\" inside citations such as \"Regulation (EU) 2016/44\", scored 0.57 to 0.67. Only one entity in the 19 judged chunks was missed outright. Recomputed from the same verdicts, accepting at 0.50 instead of 0.70 gives F1 86.6% with precision 91.6% and recall 82.1%. The new --accept and --review flags make this a setting. One document is too little evidence to change the default."
+    },
+    {
+      "status": "finding",
+      "title": "Jev is under-confident on this document",
+      "detail": "Calibration error is 0.175 here against 0.021 on the newsletter. Mentions scored between 0.40 and 0.70 were strictly correct 81% of the time (26 of 32) while their mean confidence was 0.56. The calibration chart shows the same thing: bars above the line mean Jev was right more often than it claimed."
+    },
+    {
+      "status": "open",
+      "title": "The default schema does not fit sanctions text",
+      "detail": "One relation reached the graph from 15 pages. The default relation types (works_for, acquired, produces and so on) describe companies and people, and this paper is about regulations that amend regulations and sanctions regimes that concern countries. The judge also noted that \"Official Journal of the European Union\" was typed as an organization for lack of a better type. A schema with a regulation type, and relations such as amends and concerns, is the next step for this kind of document. It is a change to one JSON file."
+    },
+    {
+      "status": "fixed",
+      "title": "A slash joined two names into one",
+      "detail": "\"Al-Qaida/ISIL\" and \"Russia/Ukraine\" were each extracted as a single entity, and the first then merged with \"ISIL\". A slash separates alternatives and is no longer treated as part of a name. The fix came after this benchmark, so the numbers here predate it."
+    },
+    {
+      "status": "fixed",
+      "title": "A name could start with a preposition",
+      "detail": "\"of the Council of the European Union\" was accepted as a mention and, being the longest form, became the entity's canonical name. A span can no longer open with a lowercase article, preposition or conjunction, and the canonical name now prefers a form that starts with a capital or a digit. Fixed after this benchmark."
+    },
+    {
+      "status": "fixed",
+      "title": "A hyphen at a line break left a gap",
+      "detail": "The PDF breaks \"Al-Qaida\" after its hyphen, and normalization turned that into \"Al- Qaida\". A hyphen at the end of a line followed by a capital letter now keeps the hyphen and drops the break. Fixed after this benchmark."
+    },
+    {
+      "status": "open",
+      "title": "American-style dates split at the comma",
+      "detail": "\"September 11, 2026\" came out as \"September 11\" and \"2026\". The joined phrase is offered as a boundary candidate, and Jev keeps the fragment. The judge marked these as boundary errors, and they account for half of the 8 wrong entities."
+    },
+    {
+      "status": "finding",
+      "title": "Skipping span resolution trades precision for recall",
+      "detail": "Tagging alone is 20% cheaper and a third faster on this paper (6.7 s against 10.1 s) and scores a similar F1 of 77.3%, with a different error profile: precision 76.3% and recall 78.3%, against 89.2% and 62.3% with resolution. Resolution is what removes wrong boundaries. It is also what pushes borderline entities under the threshold."
+    },
+    {
+      "status": "finding",
+      "title": "Speed and cost scale with length, and rate limits barely bite",
+      "detail": "The 15 pages took 10.1 s and $0.094 with the default variant: 204 calls, 2.23 million input tokens, 7.7 MiB sent and received for 23 KiB of text. Across the benchmark, 6 of 2,699 Jev calls hit a 429 rate limit, all while tagging or resolving the IMF paper, and every one succeeded on retry. None failed."
+    },
+    {
+      "status": "finding",
+      "title": "Grading costs far more than extracting",
+      "detail": "The 115 judge calls in this benchmark cost $4.31, against $1.18 for all 2,699 Jev calls, and the judge graded only every third chunk. A judge call typically takes 6 to 25 seconds, against 200 to 400 ms for a Jev call. Judge sparingly: a sample of chunks, once per variant."
+    },
+    {
+      "status": "by design",
+      "title": "Relations that need coreference are missed",
+      "detail": "The four gold relations that every variant misses all depend on resolving \"the carmaker\" or \"he\" to a name. Version 1 only relates entities that are named in the same sentence."
+    }
+  ],
+  "caveats": [
+    "The judge graded every third chunk of each document, on the first repetition of each variant. Variants with different chunk sizes were therefore judged on different slices of the text, so a gap of a few points between variants is not a finding.",
+    "Judged recall and F1 are estimates: the list of missed entities is the judge's own, not an exhaustive annotation. The judge passed its calibration check on the gold passages, which are far simpler than the IMF paper.",
+    "This benchmark ran before the three fixes listed above. Re-run it to measure them.",
+    "The gold set is 12 fictional passages that the prompts were tuned against, and the sample newsletter is built from them. Their scores are development numbers, not a held-out test.",
+    "Costs use list prices as of 2026-09-19 and are computed from recorded tokens when the page is built. Latency is the final successful attempt of each call, measured from one laptop on one afternoon."
+  ]
+}
