@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { TypeSafeClient } from "@typesafe-ai/sdk";
+import type { Answerer } from "../answerer.js";
 import { evaluateRun } from "../eval/evaluate.js";
 import { type GoldPassage, type GoldScore, scoreAgainstGold, sumScores } from "../eval/gold.js";
 import type { Judge } from "../eval/judge.js";
@@ -20,6 +21,8 @@ export interface Variant {
   resolve: boolean;
   /** Kind definitions sent once in the state instead of in every question. */
   kindsInState?: boolean;
+  /** Who answers the questions. A "claude" variant runs the identical pipeline with an LLM in Jev's place. */
+  actor?: "jev" | "claude";
 }
 
 /** Spec section 8: token tagging alone, and tagging plus span resolution at three chunk sizes. */
@@ -29,6 +32,9 @@ export const VARIANTS: Variant[] = [
   { name: "resolve-80", chunkSize: 80, resolve: true },
   { name: "resolve-160", chunkSize: 160, resolve: true },
   { name: "lean-80", chunkSize: 80, resolve: true, kindsInState: true },
+  // Same data, same stages, same questions as lean-80; only the answering model differs. It costs
+  // two orders of magnitude more, so it runs only when named with --variants.
+  { name: "opus-lean-80", chunkSize: 80, resolve: true, kindsInState: true, actor: "claude" },
 ];
 
 export interface BenchOptions {
@@ -42,6 +48,8 @@ export interface BenchOptions {
   schema: ExtractionSchema;
   schemaPath: string;
   pricing: PriceTable;
+  /** Needed only when a "claude" variant is selected. A fresh answerer per run keeps its counters per run. */
+  claude: { makeAnswerer: () => Answerer; model: string; repetitions: number; concurrency: number } | null;
   /** Builds a judge whose calls are recorded into the given run. Null skips judging, leaving gold-set accuracy only. */
   makeJudge: ((runDir: string, context: RunContext) => Judge) | null;
   judgeSampleEvery: number;
@@ -59,16 +67,22 @@ export async function runBenchmark(client: TypeSafeClient, options: BenchOptions
 
   const pacer = new TokenPacer(tokensPerSecondFromEnv());
   const failures: string[] = [];
+  const isClaude = (variant: Variant) => variant.actor === "claude";
+  const answererFor = (variant: Variant): TypeSafeClient | Answerer => {
+    if (!isClaude(variant)) return client;
+    if (!options.claude) throw new Error(`variant ${variant.name} needs the Claude answerer`);
+    return options.claude.makeAnswerer();
+  };
   const base = (variant: Variant, outDir: string | null): PipelineOptions => ({
     ...DEFAULT_OPTIONS,
     schema: options.schema,
     schemaPath: options.schemaPath,
-    model: options.model,
+    model: isClaude(variant) ? options.claude!.model : options.model,
     variant: variant.name,
     chunkSize: variant.chunkSize,
     resolve: variant.resolve,
     kindsInState: variant.kindsInState ?? false,
-    concurrency: options.concurrency,
+    concurrency: isClaude(variant) ? options.claude!.concurrency : options.concurrency,
     // A benchmark measures real calls, so the response cache is never used.
     cacheDir: null,
     outDir,
@@ -81,9 +95,10 @@ export async function runBenchmark(client: TypeSafeClient, options: BenchOptions
   for (const variant of options.variants) {
     // Runs go one after another: two documents sharing the rate limit would distort each other's latency.
     for (const doc of documents) {
-      for (let rep = 0; rep < options.repetitions; rep++) {
-        options.log(`${variant.name} · ${doc.title} · repetition ${rep + 1}/${options.repetitions}`);
-        const result = await runPipeline(doc, client, base(variant, join(benchDir, "runs"))).catch((error: unknown) => {
+      const repetitions = isClaude(variant) ? options.claude!.repetitions : options.repetitions;
+      for (let rep = 0; rep < repetitions; rep++) {
+        options.log(`${variant.name} · ${doc.title} · repetition ${rep + 1}/${repetitions}`);
+        const result = await runPipeline(doc, answererFor(variant), base(variant, join(benchDir, "runs"))).catch((error: unknown) => {
           // An unfinished run has no manifest, so the report and the dashboard skip it on their own.
           failures.push(`${variant.name} · ${doc.title} · repetition ${rep + 1}: ${error instanceof Error ? error.message : String(error)}`);
           options.log(`  failed: ${failures[failures.length - 1]}`);
@@ -103,7 +118,7 @@ export async function runBenchmark(client: TypeSafeClient, options: BenchOptions
       options.log(`${variant.name} · ${options.gold.length} gold passages`);
       const scores: GoldScore[] = [];
       for (const passage of options.gold) {
-        const result = await runPipeline(documentFromText(passage.text, passage.id), client, base(variant, null)).catch(() => null);
+        const result = await runPipeline(documentFromText(passage.text, passage.id), answererFor(variant), base(variant, null)).catch(() => null);
         if (result) scores.push(scoreAgainstGold(passage, result));
         else failures.push(`${variant.name} · gold ${passage.id}`);
       }

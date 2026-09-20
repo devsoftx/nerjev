@@ -1,5 +1,5 @@
 {
-  "subtitle": "Second benchmark. The schema grew from six entity kinds to twelve (officer, document, service, finding, recommendation and other were added), and a fifth variant, lean-80, sends the kind definitions once in the state instead of repeating them in every question. Same two documents, same judge, claude-opus-5 on every third chunk.",
+  "subtitle": "Second benchmark. The schema grew from six entity kinds to twelve, and a fifth variant, lean-80, sends the kind definitions once in the state instead of repeating them in every question. A third run, Jev against Claude Opus 5 answering the same questions with Fable 5.1 as judge, is built but blocked: see the first finding.",
   "documents": {
     "66d96fc5cb0dd906": {
       "label": "IMF board paper",
@@ -11,6 +11,21 @@
     }
   },
   "findings": [
+    {
+      "status": "open",
+      "title": "Jev versus Opus 5 on the same questions: blocked by the Anthropic credit balance",
+      "detail": "The head-to-head is built: the identical pipeline, chunks and typed questions, answered by claude-opus-5 in Jev's place, with claude-fable-5-1 as the judge. The run on the IMF paper stopped when the Anthropic API began returning \"Your credit balance is too low\". Jev's three repetitions finished and Fable graded them, but every Opus call failed, so there is no comparison on this document yet. Nothing on this page comes from that Opus run. Once credit is added, one command repeats it: nerjev bench --docs out/docs-imf --variants lean-80,opus-lean-80 --claude-reps 1 --judge --judge-sample-every 3. Expect about $19."
+    },
+    {
+      "status": "finding",
+      "title": "The one passage both actors did answer",
+      "detail": "A smoke test before the run put one 34-word gold passage through both. Opus 5 followed the question protocol without a slip (no skipped question, no option that was not offered) and found 7 of 7 entities. Jev found 6 of 7 and held the seventh for review at 0.60. Opus took 16.5 s and $0.12; Jev took 1.1 s and $0.0006. That is about 200 times the cost and 15 times the latency for one more entity, on a single passage. It is an anecdote, not a benchmark."
+    },
+    {
+      "status": "finding",
+      "title": "A second judge agrees with the first",
+      "detail": "Fable 5.1 graded the same third of the IMF paper for lean-80 that Opus 5 had graded in the tables on this page, after the bracket fix listed below. Fable: 105 right, 33 wrong, 31 missed, F1 76.6%, relaxed F1 89.1%, type accuracy 99.2%. Opus: 110 right, 28 wrong, 47 missed, F1 74.6%, relaxed 90.2%. Two judges from different model tiers land within two points of each other. Fable passed its own calibration on the twelve-kind schema first: 56 of 56 verdicts agreed with the human labels on six gold passages."
+    },
     {
       "status": "finding",
       "title": "Sending the definitions once beats repeating them",
@@ -73,6 +88,7 @@
     }
   ],
   "caveats": [
+    "The tables and charts on this page are the second benchmark, judged by claude-opus-5. The Fable 5.1 figures and the Opus-versus-Jev passage appear only in the findings, because the third run did not complete.",
     "This benchmark is not like for like with the first one. The schema changed what counts as an entity: documents and officers now count, so the same text has more entities to find and more ways to be wrong.",
     "The judge graded every third chunk of each document, on the first repetition of each variant. Variants with different chunk sizes were judged on different slices of the text, so a gap of a few points between them is not a finding. resolve-80 and lean-80 share their chunks, so that comparison is fair.",
     "Judged recall and F1 are estimates: the list of missed entities is the judge's own. The judge's calibration check was run with the six-kind schema and has not been repeated with twelve.",

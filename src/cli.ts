@@ -8,7 +8,8 @@ import { loadPricing } from "./bench/pricing.js";
 import { Recorder } from "./bench/recorder.js";
 import { callStats } from "./bench/report.js";
 import { rebuildReport, runBenchmark, VARIANTS } from "./bench/runner.js";
-import { createAnthropic, createTypeSafe, jevModel, judgeModel, loadEnv, MissingKeyError } from "./clients.js";
+import { type Answerer, ClaudeAnswerer } from "./answerer.js";
+import { createAnthropic, createTypeSafe, jevModel, judgeModel, llmAnswererEffort, llmAnswererModel, loadEnv, MissingKeyError } from "./clients.js";
 import { evaluateRun, loadRun } from "./eval/evaluate.js";
 import { checkJudge, type JudgeCheck, loadGold, scoreAgainstGold, sumScores } from "./eval/gold.js";
 import { Judge } from "./eval/judge.js";
@@ -50,6 +51,7 @@ interface CommonFlags {
   chunkSize: number;
   resolve: boolean;
   lean: boolean;
+  answerer: string;
   accept: number;
   review: number;
   includeReview: boolean;
@@ -64,6 +66,7 @@ function withCommon(command: Command): Command {
     .option("--model <id>", "Jev model id (default: TYPESAFE_DEFAULT_MODEL or jev-1.13.0)")
     .option("--concurrency <n>", "requests in flight", positiveInt, DEFAULT_OPTIONS.concurrency)
     .option("--chunk-size <n>", "askable tokens per chunk", positiveInt, DEFAULT_OPTIONS.chunkSize)
+    .option("--answerer <who>", "who answers the questions: jev, or claude (the same questions put to an LLM, at far higher cost)", "jev")
     .option("--no-resolve", "skip span resolution (stage 3c)")
     .option("--no-lean", "repeat every kind's definition in each question instead of sending them once in the state (about four times the tokens)")
     .option("--accept <p>", "confidence at or above which a mention or relation is accepted", probability, DEFAULT_OPTIONS.thresholds.accept)
@@ -78,7 +81,7 @@ function pipelineOptions(flags: CommonFlags): PipelineOptions {
     ...DEFAULT_OPTIONS,
     schema: loadSchema(flags.schema),
     schemaPath: resolve(flags.schema),
-    model: flags.model ?? jevModel(),
+    model: flags.model ?? (flags.answerer === "claude" ? llmAnswererModel() : jevModel()),
     chunkSize: flags.chunkSize,
     resolve: flags.resolve,
     kindsInState: flags.lean,
@@ -89,6 +92,12 @@ function pipelineOptions(flags: CommonFlags): PipelineOptions {
     outDir: flags.out,
     log,
   };
+}
+
+function makeAnswerer(who: string): ReturnType<typeof createTypeSafe> | Answerer {
+  if (who === "jev") return createTypeSafe();
+  if (who === "claude") return new ClaudeAnswerer(createAnthropic(), llmAnswererEffort());
+  throw new BadInput("--answerer must be jev or claude");
 }
 
 function requirePdf(path: string): string {
@@ -102,7 +111,7 @@ async function extract(pdf: string, flags: CommonFlags): Promise<PipelineResult>
   log(`${doc.title}: ${doc.pageCount} pages, ${doc.text.length} characters`);
   if (doc.skippedPages.length) log(`warning: pages ${doc.skippedPages.join(", ")} have almost no text (probably scanned) and were skipped`);
   if (!doc.text.trim()) throw new BadInput("the PDF has no extractable text; scanned PDFs need OCR, which v1 does not do");
-  return runPipeline(doc, createTypeSafe(), options);
+  return runPipeline(doc, makeAnswerer(flags.answerer), options);
 }
 
 function summary(result: PipelineResult) {
@@ -210,9 +219,8 @@ withCommon(program.command("gold").description("score the extractor against the 
     const options = { ...pipelineOptions(flags), outDir: null, log: () => {} };
     const gold = loadGold(flags.gold, options.schema);
     if (!gold.length) throw new BadInput(`no gold passages in ${flags.gold}`);
-    const client = createTypeSafe();
     const scores = [];
-    for (const passage of gold) scores.push(scoreAgainstGold(passage, await runPipeline(documentFromText(passage.text, passage.id), client, options)));
+    for (const passage of gold) scores.push(scoreAgainstGold(passage, await runPipeline(documentFromText(passage.text, passage.id), makeAnswerer(flags.answerer), options)));
     const total = sumScores(scores);
     if (flags.json) return void process.stdout.write(`${JSON.stringify(total, null, 2)}\n`);
     const line = (name: string, m: typeof total.entity) =>
@@ -249,13 +257,15 @@ program
   .option("--model <id>", "Jev model id; pin a version, not the jev-latest alias")
   .option("--variants <names>", `comma-separated subset of: ${VARIANTS.map((v) => v.name).join(", ")}`)
   .option("--reps <n>", "repetitions per variant and document", positiveInt, 3)
+  .option("--claude-reps <n>", "repetitions for variants answered by Claude, which cost far more", positiveInt, 1)
   .option("--concurrency <n>", "requests in flight", positiveInt, DEFAULT_OPTIONS.concurrency)
   .option("--judge", "also grade the first repetition of each run with the Claude judge (costs more than the extraction)", false)
   .option("--judge-sample-every <n>", "judge every n-th chunk only", positiveInt, 1)
-  .action(async (flags: { schema: string; docs: string; gold: string; out: string; model?: string; variants?: string; reps: number; concurrency: number; judge: boolean; judgeSampleEvery: number }) => {
+  .action(async (flags: { schema: string; docs: string; gold: string; out: string; model?: string; variants?: string; reps: number; claudeReps: number; concurrency: number; judge: boolean; judgeSampleEvery: number }) => {
     const schema = loadSchema(flags.schema);
     const wanted = flags.variants?.split(",").map((name) => name.trim());
-    const variants = wanted ? VARIANTS.filter((v) => wanted.includes(v.name)) : VARIANTS;
+    // Variants answered by Claude run only when named: they cost two orders of magnitude more.
+    const variants = wanted ? VARIANTS.filter((v) => wanted.includes(v.name)) : VARIANTS.filter((v) => v.actor !== "claude");
     if (!variants.length) throw new BadInput(`no such variant; choose from ${VARIANTS.map((v) => v.name).join(", ")}`);
     const model = flags.model ?? jevModel();
     if (/latest|preview/.test(model)) log(`warning: ${model} is an alias that moves; pin a versioned id for numbers you intend to compare`);
@@ -270,6 +280,9 @@ program
       schema,
       schemaPath: resolve(flags.schema),
       pricing: loadPricing(),
+      claude: variants.some((v) => v.actor === "claude")
+        ? { makeAnswerer: () => new ClaudeAnswerer(createAnthropic(), llmAnswererEffort()), model: llmAnswererModel(), repetitions: flags.claudeReps, concurrency: flags.concurrency }
+        : null,
       makeJudge: flags.judge ? (runDir, context) => makeJudge(runDir, context, 4) : null,
       judgeSampleEvery: flags.judgeSampleEvery,
       log,

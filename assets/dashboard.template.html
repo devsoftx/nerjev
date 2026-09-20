@@ -122,6 +122,8 @@
   th { font-weight: 500; color: var(--ink-2); font-size: 12px; vertical-align: bottom; background: var(--surface); }
   th:first-child, td:first-child { text-align: left; }
   td:first-child { font-family: var(--mono); font-size: 12.5px; }
+  #table-versus td:first-child { font-family: var(--sans); font-size: 13px; color: var(--ink-2); }
+  #table-versus th:not(:first-child) { font-family: var(--mono); color: var(--ink); }
   tbody tr:last-child td { border-bottom: 0; }
   tr.selected td { background: var(--wash); }
   tr.selected td:first-child { font-weight: 500; box-shadow: inset 2px 0 0 var(--accent); }
@@ -196,17 +198,25 @@
       <div class="hero">
         <div class="eyebrow">Extraction cost</div>
         <div class="figure" id="hero-figure"></div>
-        <div class="unit">per page, Jev calls only</div>
+        <div class="unit" id="hero-unit"></div>
         <p class="context" id="hero-context"></p>
       </div>
       <div class="tiles" id="tiles"></div>
     </div>
   </section>
 
+  <section class="section" aria-labelledby="h-versus" id="versus-section">
+    <header>
+      <h2 id="h-versus">Head to head</h2>
+      <p id="versus-sub"></p>
+    </header>
+    <div class="table-wrap"><table id="table-versus"></table></div>
+  </section>
+
   <section class="section" aria-labelledby="h-pipeline">
     <header>
       <h2 id="h-pipeline">The pipeline, stage by stage</h2>
-      <p>Jev answers typed questions and never generates text, so code proposes candidates and Jev judges them. The bar under each Jev stage is its share of the run's input tokens.</p>
+      <p>Code proposes candidates and a model judges them by answering typed questions. Jev does that natively. An LLM variant is put the very same questions, so the stages below are identical for both. The bar under each stage is its share of the run's input tokens.</p>
     </header>
     <ol class="pipeline" id="pipeline"></ol>
   </section>
@@ -228,11 +238,11 @@
         <div class="chart" id="chart-latency"></div>
       </article>
       <article class="panel">
-        <header><h3>Grading costs more than extracting</h3><p id="cost-sub"></p></header>
+        <header><h3>Extracting and grading, per chunk</h3><p id="cost-sub"></p></header>
         <div class="chart" id="chart-cost"></div>
       </article>
       <article class="panel">
-        <header><h3>Does Jev's confidence mean what it says?</h3><p id="calibration-sub"></p></header>
+        <header><h3>Does the confidence mean what it says?</h3><p id="calibration-sub"></p></header>
         <div class="legend" id="calibration-legend"></div>
         <div class="chart" id="chart-calibration"></div>
       </article>
@@ -300,11 +310,11 @@
   ];
   var STEPS = [
     { name: "Read the PDF", who: "code" },
-    { name: "Tag words", who: "Jev", stage: "ner_tag" },
-    { name: "Resolve boundaries", who: "Jev", stage: "ner_resolve" },
-    { name: "Type phrases", who: "Jev", stage: "ner_type" },
-    { name: "Merge entities", who: "Jev", stage: "entity_align" },
-    { name: "Relate pairs", who: "Jev", stage: "relation" },
+    { name: "Tag words", who: "model", stage: "ner_tag" },
+    { name: "Resolve boundaries", who: "model", stage: "ner_resolve" },
+    { name: "Type phrases", who: "model", stage: "ner_type" },
+    { name: "Merge entities", who: "model", stage: "entity_align" },
+    { name: "Relate pairs", who: "model", stage: "relation" },
     { name: "Load the graph", who: "code, Neo4j" }
   ];
 
@@ -420,7 +430,7 @@
   byId("eyebrow").textContent = "Experiment · " + D.benchmark;
   byId("lede").textContent = D.notes.subtitle || "";
   var meta = byId("meta");
-  [["Extractor", D.extractorModel], ["Judge", D.judgeModel || "not run"], ["Prices as of", D.pricingAsOf], ["Generated", D.generatedAt.slice(0, 10)]].forEach(function (pair) {
+  [[D.extractorModels.length > 1 ? "Answering models" : "Extractor", D.extractorModels.join(" vs ")], ["Judge", D.judgeModel || "not run"], ["Prices as of", D.pricingAsOf], ["Generated", D.generatedAt.slice(0, 10)]].forEach(function (pair) {
     meta.appendChild(el("span", {}, [pair[0] + " ", el("b", { class: "mono", text: pair[1] })]));
   });
 
@@ -430,6 +440,7 @@
     byId("doc-description").textContent = doc.description + (doc.skippedPages.length ? " Pages " + doc.skippedPages.join(" and ") + " had almost no extractable text and were skipped." : "");
     var perPage = isNum(row.costUsd) ? row.costUsd / doc.pages : null;
     byId("hero-figure").textContent = usd(perPage);
+    byId("hero-unit").textContent = "per page, extraction calls to " + row.model + " only";
     byId("hero-context").textContent = "The whole " + doc.pages + "-page document cost " + usd(row.costUsd) + " across " + int(row.calls) + " calls and finished in " + fixed(row.wallSeconds.mean, 1) + " s.";
 
     var acc = row.accuracy;
@@ -454,7 +465,7 @@
     STEPS.forEach(function (step, i) {
       var li = el("li", {}, [el("div", { class: "step", text: "STEP " + (i + 1) }), el("div", { class: "name", text: step.name })]);
       var s = step.stage && stageOf(row, step.stage);
-      li.appendChild(el("div", { class: "who", text: step.stage ? "Jev · " + step.stage : step.who }));
+      li.appendChild(el("div", { class: "who", text: step.stage ? row.model + " · " + step.stage : step.who }));
       if (step.stage && !s) li.appendChild(el("div", { class: "stat", text: "skipped in this variant" }));
       if (s) {
         var color = STAGES.filter(function (x) { return x.id === step.stage; })[0].color;
@@ -544,7 +555,10 @@
   function renderLatency() {
     var host = byId("chart-latency"), row = current();
     legend(byId("latency-legend"), [{ label: "p50", color: cssVar("--accent"), shape: "dot" }, { label: "p95", color: cssVar("--accent"), shape: "dot hollow" }]);
-    byId("latency-sub").textContent = "Each Jev call answers up to about 80 questions in parallel, so latency barely grows with the number of questions." +
+    var llm = (D.variants.filter(function (v) { return v.name === state.variant; })[0] || {}).actor === "claude";
+    byId("latency-sub").textContent = (llm
+      ? "The same requests, answered by " + row.model + ". An LLM writes its answers out token by token, so a call with more questions takes longer."
+      : "Each Jev call answers its questions in parallel, so latency barely grows with the number of questions.") +
       (row.judge ? " For scale, one " + D.judgeModel + " judge call took " + ms(row.judge.latencyP50) + " at p50." : "");
     var stages = STAGES.map(function (s) { return { def: s, data: stageOf(row, s.id) }; }).filter(function (s) { return s.data && isNum(s.data.latencyP50); });
     if (!stages.length) return emptyChart(host, "No latency was recorded for this run.");
@@ -552,7 +566,8 @@
     var max = niceMax(Math.max.apply(null, stages.map(function (s) { return s.data.latencyP95 || s.data.latencyP50; })));
     var x0 = left, x1 = W - right, scale = (x1 - x0) / max;
     var root = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "group", "aria-label": "Latency per call by stage, p50 and p95" });
-    xAxis(root, x0, x1, top, top + stages.length * rowH, max, function (v) { return Math.round(v) + (v === max ? " ms" : ""); }, tickCount(max));
+    var seconds = max >= 5000;
+    xAxis(root, x0, x1, top, top + stages.length * rowH, max, function (v) { return seconds ? (v / 1000) + (v === max ? " s" : "") : Math.round(v) + (v === max ? " ms" : ""); }, tickCount(max));
     stages.forEach(function (s, i) {
       var y = top + i * rowH + rowH / 2, a = x0 + s.data.latencyP50 * scale, b = x0 + (s.data.latencyP95 || s.data.latencyP50) * scale;
       root.appendChild(svg("text", { x: x0 - 10, y: y + 4, "text-anchor": "end" }, s.def.name));
@@ -566,7 +581,8 @@
         root.appendChild(mark);
         root.appendChild(hit);
       });
-      root.appendChild(svg("text", { x: x1 + 10, y: y + 4, class: "tick" }, Math.round(s.data.latencyP50) + " · " + Math.round(s.data.latencyP95 || 0)));
+      var short = function (v) { return seconds ? (v / 1000).toFixed(1) : String(Math.round(v)); };
+      root.appendChild(svg("text", { x: x1 + 10, y: y + 4, class: "tick" }, short(s.data.latencyP50) + " · " + short(s.data.latencyP95 || 0)));
     });
     clear(host).appendChild(root);
   }
@@ -580,9 +596,11 @@
     }
     var extraction = row.costUsd / Math.max(1, row.counts.chunks);
     var judging = row.judge.costUsd / Math.max(1, row.judge.calls);
-    byId("cost-sub").textContent = "Per chunk of text, " + D.judgeModel + " costs about " + Math.round(judging / extraction) + " times what Jev costs to extract it. The judge graded " + row.judge.chunksJudged + " of " + row.counts.chunks + " chunks here, for " + usd(row.judge.costUsd) + " in total.";
+    var ratio = judging / extraction;
+    byId("cost-sub").textContent = "Per chunk of text, grading with " + D.judgeModel + " costs " + (ratio >= 1.5 ? "about " + Math.round(ratio) + " times what" : ratio > 0.67 ? "about as much as" : "about " + Math.round(1 / ratio) + " times less than") +
+      " extracting with " + row.model + (ratio >= 1.5 ? " costs" : "") + ". The judge graded " + row.judge.chunksJudged + " of " + row.counts.chunks + " chunks here, for " + usd(row.judge.costUsd) + " in total.";
     var items = [
-      { label: "Extract one chunk", sub: D.extractorModel, value: extraction, color: "--accent" },
+      { label: "Extract one chunk", sub: row.model, value: extraction, color: "--accent" },
       { label: "Judge one chunk", sub: D.judgeModel, value: judging, color: "--deemph" }
     ];
     var W = widthOf(host), left = 132, right = 70, rowH = 46, bar = 20, top = 6, H = top + items.length * rowH + 26;
@@ -611,7 +629,10 @@
       return emptyChart(host, "No judged mentions for this run.");
     }
     var cal = acc.calibration.mentions;
-    byId("calibration-sub").textContent = "Mentions grouped by Jev's confidence, against how often the judge agreed. A bar on the line means the confidence can be taken at face value. Expected calibration error: " + fixed(cal.ece, 3) + " over " + cal.count + " mentions.";
+    var selfReported = (D.variants.filter(function (v) { return v.name === state.variant; })[0] || {}).actor === "claude";
+    byId("calibration-sub").textContent = "Mentions grouped by " + row.model + "'s confidence, against how often the judge agreed. " +
+      (selfReported ? "For an LLM this is a number it was asked to state, not a probability read from the model. " : "Jev's confidence comes from the probabilities it returns. ") +
+      "A bar on the line means the confidence can be taken at face value. Expected calibration error: " + fixed(cal.ece, 3) + " over " + cal.count + " mentions.";
     var bins = cal.bins, first = Math.min(0.4, bins[0].from), W = widthOf(host), left = 44, right = 14, top = 10, plotH = 170, H = top + plotH + 44;
     var x0 = left, x1 = W - right, span = 1 - first, bw = (x1 - x0) / Math.round(span * 10);
     var root = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "group", "aria-label": "Judged accuracy by confidence bin" });
@@ -687,6 +708,48 @@
     ], names.map(function (n) { return [n].concat(prfCells(D.gold.scores[n].entity, true), prfCells(D.gold.scores[n].relation, true)); }), names.indexOf(state.variant));
   }
 
+  // One column per variant that ran on this document, one row per measure, so two actors read across.
+  function renderVersus() {
+    var rows = rowsForDoc(), pages = docInfo().pages, section = byId("versus-section");
+    var actors = rows.map(function (r) { return r.model; }).filter(function (m, i, all) { return all.indexOf(m) === i; });
+    section.hidden = actors.length < 2;
+    if (section.hidden) return;
+    byId("versus-sub").textContent = "The same document, the same chunks, the same questions and the same code around them. What differs between columns is the variant and, where the model row differs, who answered. Judged figures come from " + (D.judgeModel || "the judge") + ", which was never told which system it was grading.";
+    var tagOf = function (r) { return stageOf(r, "ner_tag") || {}; };
+    var acc = function (pick) { return function (r) { return r.accuracy ? pick(r.accuracy) : NA; }; };
+    var counts = function (m) { return m.tp + " / " + m.fp + " / " + m.fn; };
+    var gold = function (pick) { return function (r) { var g = D.gold.scores[r.variant]; return g ? pick(g) : NA; }; };
+    var measures = [
+      ["Answering model", function (r) { return r.model; }],
+      ["Entity F1, judged strict", acc(function (a) { return pct(a.entityStrict.f1); })],
+      ["Entities right / wrong / missed", acc(function (a) { return counts(a.entityStrict); })],
+      ["Entity precision", acc(function (a) { return pct(a.entityStrict.precision); })],
+      ["Entity recall", acc(function (a) { return pct(a.entityStrict.recall); })],
+      ["Entity F1, boundary forgiven", acc(function (a) { return pct(a.entityRelaxed.f1); })],
+      ["Relation F1, judged", acc(function (a) { return pct(a.relation.f1); })],
+      ["Calibration error", acc(function (a) { return fixed(a.calibration.mentions.ece, 3); })],
+      ["Gold passages: entity F1", gold(function (g) { return pct(g.entity.f1) + "  (" + counts(g.entity) + ")"; })],
+      ["Gold passages: relation F1", gold(function (g) { return pct(g.relation.f1) + "  (" + counts(g.relation) + ")"; })],
+      ["Cost for the document", function (r) { return usd(r.costUsd); }],
+      ["Cost per page", function (r) { return usd(isNum(r.costUsd) ? r.costUsd / pages : null); }],
+      ["Wall time", function (r) { return fixed(r.wallSeconds.mean, 1) + " s"; }],
+      ["Pages per minute", function (r) { return fixed(r.pagesPerMinute, 0); }],
+      ["Tagging call latency, p50 / p95", function (r) { return ms(tagOf(r).latencyP50) + " / " + ms(tagOf(r).latencyP95); }],
+      ["Calls", function (r) { return fixed(r.calls, 0); }],
+      ["Input tokens", function (r) { return int(r.inputTokens); }],
+      ["Output tokens", function (r) { return int(r.outputTokens); }],
+      ["Payload sent and received", function (r) { return kib(r.payloadKiB); }],
+      ["Held for review", function (r) { return pct(r.counts.mentions ? r.counts.review / r.counts.mentions : null, 0); }],
+      ["Entities / relations in graph", function (r) { return int(r.counts.entities) + " / " + int(r.counts.graphRelations); }],
+      ["Repetitions", function (r) { return String(r.repetitions); }]
+    ];
+    var head = [[{ text: "Measure" }].concat(rows.map(function (r) { return { text: r.variant }; }))];
+    table(byId("table-versus"), head, measures.map(function (m) { return [m[0]].concat(rows.map(m[1])); }), -1);
+    // the selected variant is a column here, so mark its cells instead of a row
+    var at = selectedIndex(rows) + 1;
+    Array.prototype.forEach.call(byId("table-versus").querySelectorAll("tr"), function (tr) { if (tr.children[at]) tr.children[at].style.background = "var(--wash)"; });
+  }
+
   function renderRuns() {
     var rows = rowsForDoc(), pages = docInfo().pages;
     table(byId("table-runs"), [[
@@ -740,7 +803,7 @@
 
   // ---------- wiring ----------
   function renderAll() {
-    renderSummary(); renderPipeline(); renderTokens(); renderLatency(); renderCost(); renderCalibration(); renderAccuracy(); renderRuns(); renderStages();
+    renderSummary(); renderVersus(); renderPipeline(); renderTokens(); renderLatency(); renderCost(); renderCalibration(); renderAccuracy(); renderRuns(); renderStages();
   }
   function renderControls() {
     segmented(byId("doc-seg"), "doc", D.documents.map(function (d) { return { value: d.id, label: d.label + " · " + d.pages + " pp" }; }), state.doc, function (v) { state.doc = v; remember(); renderAll(); });

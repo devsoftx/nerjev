@@ -1,0 +1,103 @@
+{
+  "runId": "20260920T002542-66d96fc5-johl",
+  "variant": "lean-80",
+  "extractorModel": "jev-1.13.0",
+  "judgeModel": "claude-fable-5-1",
+  "entityStrict": {
+    "tp": 105,
+    "fp": 33,
+    "fn": 31,
+    "precision": 0.7608695652173914,
+    "recall": 0.7720588235294118,
+    "f1": 0.7664233576642335
+  },
+  "entityRelaxed": {
+    "tp": 122,
+    "fp": 16,
+    "fn": 14,
+    "precision": 0.8840579710144928,
+    "recall": 0.8970588235294118,
+    "f1": 0.8905109489051095
+  },
+  "relation": {
+    "tp": 0,
+    "fp": 0,
+    "fn": 0,
+    "precision": null,
+    "recall": null,
+    "f1": null
+  },
+  "typeAccuracy": 0.991869918699187,
+  "calibration": {
+    "mentions": {
+      "bins": [
+        {
+          "from": 0.4,
+          "to": 0.5,
+          "count": 10,
+          "meanConfidence": 0.4426,
+          "accuracy": 0
+        },
+        {
+          "from": 0.5,
+          "to": 0.6,
+          "count": 13,
+          "meanConfidence": 0.5452846153846154,
+          "accuracy": 0
+        },
+        {
+          "from": 0.6,
+          "to": 0.7,
+          "count": 8,
+          "meanConfidence": 0.6381,
+          "accuracy": 0.25
+        },
+        {
+          "from": 0.7,
+          "to": 0.8,
+          "count": 26,
+          "meanConfidence": 0.7668692307692309,
+          "accuracy": 0.5
+        },
+        {
+          "from": 0.8,
+          "to": 0.9,
+          "count": 17,
+          "meanConfidence": 0.8505352941176471,
+          "accuracy": 0.8823529411764706
+        },
+        {
+          "from": 0.9,
+          "to": 1,
+          "count": 95,
+          "meanConfidence": 0.9858905263157893,
+          "accuracy": 0.8105263157894737
+        }
+      ],
+      "ece": 0.2293408284023668,
+      "count": 169
+    },
+    "relations": {
+      "bins": [],
+      "ece": null,
+      "count": 0
+    }
+  },
+  "note": "Recall and F1 are estimates: misses come from the judge, not from exhaustive annotation. Compare with the gold-set numbers.",
+  "clusterPurity": {
+    "judged": 0,
+    "pure": 0,
+    "purity": null
+  },
+  "judge": {
+    "chunksJudged": 19,
+    "chunksFailed": 0,
+    "errors": [
+      "clusters: APIError 400: 400 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_id\":\"req_011CfDk4VsLUcRszXb81iMYb\"}"
+    ],
+    "missingVerdicts": 0,
+    "discardedMisses": 0,
+    "selfAgreement": null,
+    "selfAgreementVerdicts": 0
+  }
+}

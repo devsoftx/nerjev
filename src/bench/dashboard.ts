@@ -40,6 +40,8 @@ interface StageRow {
 interface ResultRow {
   docId: string;
   variant: string;
+  /** The model that answered the questions in this variant, as its responses reported it. */
+  model: string;
   repetitions: number;
   wallSeconds: { mean: number; min: number; max: number };
   pagesPerMinute: number | null;
@@ -57,12 +59,13 @@ interface ResultRow {
 export interface DashboardData {
   generatedAt: string;
   benchmark: string;
-  extractorModel: string;
+  /** Every model that answered extraction questions, in variant order. */
+  extractorModels: string[];
   judgeModel: string | null;
   pricingAsOf: string;
   notes: DashboardNotes;
   documents: { id: string; label: string; description: string; pages: number; skippedPages: number[]; characters: number }[];
-  variants: { name: string; chunkSize: number; resolve: boolean; kindsInState?: boolean }[];
+  variants: { name: string; chunkSize: number; resolve: boolean; kindsInState?: boolean; actor?: "jev" | "claude" }[];
   results: ResultRow[];
   gold: { passages: number; scores: Record<string, Omit<GoldScore, "errors">> };
   judgeCheck: JudgeCheck | null;
@@ -146,6 +149,7 @@ export function buildDashboardData(benchDir: string, pricing: PriceTable, notes:
     return {
       docId: first.manifest.docId,
       variant: first.manifest.variant,
+      model: first.calls.find((c) => JEV_STAGES.includes(c.stage) && !c.cached)?.model ?? first.manifest.model,
       repetitions: group.length,
       wallSeconds: { mean: mean(wall), min: Math.min(...wall), max: Math.max(...wall) },
       pagesPerMinute: mean(wall) > 0 ? (pages / mean(wall)) * 60 : null,
@@ -187,7 +191,7 @@ export function buildDashboardData(benchDir: string, pricing: PriceTable, notes:
   return {
     generatedAt: new Date().toISOString(),
     benchmark: benchDir.replace(/\/+$/, "").split("/").pop()!,
-    extractorModel: first(runs).manifest.model,
+    extractorModels: [...new Set(results.map((r) => r.model))],
     judgeModel: results.find((r) => r.accuracy)?.accuracy?.judgeModel ?? null,
     pricingAsOf: pricing.asOf,
     notes,
@@ -198,8 +202,6 @@ export function buildDashboardData(benchDir: string, pricing: PriceTable, notes:
     judgeCheck,
   };
 }
-
-const first = <T>(items: T[]): T => items[0]!;
 
 /** Inlines the data where the template has its placeholder. `<` is escaped so no value can close the script tag. */
 export function renderDashboard(data: DashboardData, templatePath: string = DEFAULT_TEMPLATE_PATH): string {

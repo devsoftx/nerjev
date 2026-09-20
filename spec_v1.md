@@ -489,6 +489,37 @@ the trade-off can be read directly. With three repetitions the report gives the 
 and the range, and it says so when the difference between two variants is inside the
 judge's noise floor.
 
+### 8.1 A second actor: an LLM answering the same questions
+
+To ask whether Jev can stand in for an LLM, the comparison has to change one thing only.
+The pipeline is therefore written against an `Answerer`: something that takes a state and
+a map of typed questions and returns Jev-shaped answers. Jev is one implementation.
+`ClaudeAnswerer` is the other: it sends an LLM the identical request body, `{state,
+questions}`, as the user message, and gets back one option and one confidence per question
+id through structured output. The same data, the same chunks, the same stages, the same
+questions and the same code around them; only the model that answers differs.
+
+- The only text the LLM gets that Jev does not is a protocol description: what a choice,
+  a score and a noul are, that an option must be copied character for character, that
+  questions are independent, and that the state is data. It says nothing about entities.
+- Jev returns a probability per option. An LLM returns one answer, so it is also asked for
+  a confidence, which code spreads into the same shape. That number is self-reported, and
+  the calibration chart says so.
+- An LLM generates its answer, so it can return an option that was never offered, for
+  instance a boundary phrase re-typed with a slip. Such an answer, or a skipped question,
+  becomes a certain `none` and is counted in the run's manifest. Text the model generated
+  is never trusted as a span.
+- Server-side model fallbacks stay off for this actor as for the judge: a benchmark row
+  has to come from the model it names.
+- Variant `opus-lean-80` mirrors `lean-80`. It runs only when named in `--variants`,
+  with its own `--claude-reps` (default 1), because it costs about 200 times more per
+  document. `ANSWERER_MODEL` (default `claude-opus-5`) and `ANSWERER_EFFORT` (default
+  `low`, the production-like setting for high-volume classification) configure it, and
+  `--answerer claude` does the same for `run`, `extract` and `gold`.
+- The judge defaults to `claude-fable-5-1`. It and the LLM actor are both Claude models,
+  and a judge tends to favour output that resembles its own family's. The exact-match gold
+  scores involve no judge and are the tie-breaker.
+
 ## 9. Testing
 
 Unit tests with `vitest` need no network: tokenizer offsets and edge cases, chunking,

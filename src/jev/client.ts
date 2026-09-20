@@ -1,4 +1,5 @@
-import type { EntryType, Questions, SystemOneResult, TypeSafeClient } from "@typesafe-ai/sdk";
+import type { EntryType, Questions, SystemOneResult } from "@typesafe-ai/sdk";
+import type { Answerer } from "../answerer.js";
 import type { LimitFunction } from "p-limit";
 import type { CallMeta, Recorder } from "../bench/recorder.js";
 import { traceCall } from "../telemetry/instrumentedFetch.js";
@@ -7,7 +8,8 @@ import type { JevCache } from "./cache.js";
 import type { TokenPacer } from "./pacer.js";
 
 export interface JevOptions {
-  client: TypeSafeClient;
+  /** Jev itself, or an LLM put in its place to answer the same questions. */
+  answerer: Answerer;
   /** Pinned model id. Anything compared across runs should not use the jev-latest alias. */
   model: string;
   recorder: Recorder;
@@ -47,14 +49,14 @@ export class Jev {
   }
 
   private async request(state: EntryType, questions: Questions, meta: CallMeta): Promise<Record<string, unknown>> {
-    const { recorder, cache, client, limit } = this.options;
+    const { recorder, cache, answerer, limit } = this.options;
     const questionCount = Object.keys(questions).length;
     const stateChars = (typeof state === "string" ? state : JSON.stringify(state)).length;
 
     const hit = cache?.get(this.model, state, questions);
     if (hit) {
       recorder.record(meta, {
-        provider: "typesafe",
+        provider: answerer.provider,
         model: hit.model,
         trace: { attempts: [] },
         wallMs: 0,
@@ -70,20 +72,15 @@ export class Jev {
     // Waiting for the pacer and for a concurrency slot is local queueing, so the timer starts after both.
     await this.options.pacer?.reserve(this.budget.estimateTokens(meta.stage, questionCount));
     const { trace, wallMs, outcome } = await limit(() =>
-      traceCall(() => client.systemOne({ state, questions, model: this.model })),
+      traceCall(() => answerer.answer(state, questions, this.model)),
     );
     const result = outcome.ok ? outcome.value : null;
     recorder.record(meta, {
-      provider: "typesafe",
+      provider: answerer.provider,
       model: result?.model ?? this.model,
       trace,
       wallMs,
-      usage: {
-        inputTokens: result?.usage.input_tokens ?? null,
-        outputTokens: result?.usage.output_tokens ?? null,
-        cacheReadTokens: null,
-        cacheWriteTokens: null,
-      },
+      usage: result?.usage ?? { inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheWriteTokens: null },
       questionCount,
       stateChars,
       cached: false,
@@ -92,8 +89,9 @@ export class Jev {
     if (!outcome.ok) throw outcome.error;
 
     const { model, answers, usage } = outcome.value;
-    this.budget.observe(meta.stage, usage.input_tokens, questionCount);
-    cache?.set(this.model, state, questions, { model, answers, usage });
+    const inputTokens = (usage.inputTokens ?? 0) + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0);
+    this.budget.observe(meta.stage, inputTokens, questionCount);
+    cache?.set(this.model, state, questions, { model, answers, usage: { input_tokens: inputTokens, output_tokens: usage.outputTokens ?? 0 } });
     return answers;
   }
 }

@@ -1,0 +1,14 @@
+opus-lean-80 · 1308786 · repetition 1: 400 {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits."},"request_id":"req_011CfDk6tCZV1jEhun2rQRR3"}
+opus-lean-80 · gold g01
+opus-lean-80 · gold g02
+opus-lean-80 · gold g03
+opus-lean-80 · gold g04
+opus-lean-80 · gold g05
+opus-lean-80 · gold g06
+opus-lean-80 · gold g07
+opus-lean-80 · gold g08
+opus-lean-80 · gold g09
+opus-lean-80 · gold g10
+opus-lean-80 · gold g11
+opus-lean-80 · gold g12
+opus-lean-80 · gold g13

@@ -33,6 +33,7 @@ Run the CLI with `npm run nerjev -- <command>`, or `npm run build` once and use
 | `judge-check` | Check the judge against the gold labels and against known-bad extractions |
 | `bench` | Variants × documents × repetitions, cache off. `--judge` adds judged accuracy |
 | `report <benchDir>` | Rebuild a benchmark's report from its saved data, with no API calls |
+| `bench --variants lean-80,opus-lean-80` | Head to head: the identical pipeline and questions answered by Jev and by Claude Opus 5 (`--claude-reps`, default 1) |
 | `dashboard <benchDir>` | Build a self-contained HTML dashboard of a benchmark. `--notes` adds findings and caveats, `--judge-check` adds the judge's calibration |
 | `inspect <pdf> --chunk N` | Print the exact Jev request for a chunk, to paste into the TypeSafe Playground |
 
@@ -43,6 +44,7 @@ npm run nerjev -- run bench/docs/sample-newsletter.pdf
 ```
 
 Useful flags on `run` and `extract`: `--schema <file>`, `--chunk-size <n>`, `--no-resolve`,
+`--answerer claude` (put the same questions to an LLM instead of Jev, at about 200 times the cost),
 `--no-lean` (repeat every kind's definition in each question; the default sends them once in
 the state, which costs about a quarter of the tokens and scored higher),
 `--accept <p>` and `--review <p>` (confidence thresholds, default 0.70 and 0.40),
@@ -154,6 +156,7 @@ token pacer was added; the benchmark then made 3,650 calls with no 429.
 
 ```
 src/pdf, src/text        PDF text, normalization, sentences, tokens, chunks
+src/answerer.ts          who answers the typed questions: Jev, or an LLM given the identical request
 src/jev                  Jev client wrapper: batching to the token budget, token pacer, cache, call records
 src/ner                  tag, assemble, resolve
 src/entities             blocking, pair alignment, clustering
@@ -169,7 +172,7 @@ assets                   the dashboard's HTML template
 
 ## Tests
 
-`npm test` runs 65 offline tests. Jev is replaced by a fake injected through the SDK's
+`npm test` runs 70 offline tests. Jev is replaced by a fake injected through the SDK's
 `fetch` option, so the real client, retry logic and telemetry all run. They cover token
 offsets, chunking, span assembly, boundary candidates, entity merging, relation options,
 Cypher safety (document text never reaches a query string), metrics, pricing, retries and

@@ -1,0 +1,25 @@
+{
+  "judgeModel": "claude-fable-5-1",
+  "passages": 6,
+  "goldAgreement": {
+    "agreed": 56,
+    "total": 56,
+    "rate": 1
+  },
+  "negatives": {
+    "shuffledTypesCaught": {
+      "caught": 33,
+      "total": 33
+    },
+    "foreignExtractionCaught": {
+      "caught": 33,
+      "total": 33
+    },
+    "emptyExtractionMissesFound": {
+      "found": 32,
+      "total": 33
+    }
+  },
+  "errors": [],
+  "passed": true
+}

@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { TypeSafeClient } from "@typesafe-ai/sdk";
 import pLimit from "p-limit";
+import { type Answerer, isAnswerer, typesafeAnswerer } from "./answerer.js";
 import { Recorder } from "./bench/recorder.js";
 import { alignPair } from "./entities/align.js";
 import { buildNodes, candidatePairs } from "./entities/block.js";
@@ -79,8 +80,9 @@ export function newRunId(docId: string): string {
 }
 
 /** Stages 2 to 5 for one document. Stage 1 (PDF) happens before, stage 6 (graph) after. */
-export async function runPipeline(doc: DocumentText, client: TypeSafeClient, options: PipelineOptions): Promise<PipelineResult> {
+export async function runPipeline(doc: DocumentText, client: TypeSafeClient | Answerer, options: PipelineOptions): Promise<PipelineResult> {
   const started = Date.now();
+  const answerer = isAnswerer(client) ? client : typesafeAnswerer(client);
   const runId = newRunId(doc.id);
   const runDir = options.outDir ? join(options.outDir, runId) : null;
   if (runDir) mkdirSync(runDir, { recursive: true });
@@ -102,13 +104,14 @@ export async function runPipeline(doc: DocumentText, client: TypeSafeClient, opt
       includeReview: options.includeReview,
       concurrency: options.concurrency,
       cache: options.cacheDir !== null,
+      answeredBy: answerer.provider,
     },
     startedAt: new Date(started).toISOString(),
   };
 
   const recorder = new Recorder(runDir ? join(runDir, "calls.jsonl") : null, { runId, variant: options.variant, docId: doc.id });
   const jev = new Jev({
-    client,
+    answerer,
     model: options.model,
     recorder,
     limit: pLimit(options.concurrency),
@@ -191,6 +194,7 @@ export async function runPipeline(doc: DocumentText, client: TypeSafeClient, opt
     relations: relations.length,
     graphRelations: graph.relations.length,
     calls: recorder.rows.length,
+    ...(answerer.diagnostics?.() ?? {}),
   };
   write("manifest.json", manifest);
 

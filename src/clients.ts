@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import Anthropic from "@anthropic-ai/sdk";
 import { TypeSafeClient } from "@typesafe-ai/sdk";
+import type { Effort } from "./answerer.js";
 import { type FetchLike, instrumentedFetch } from "./telemetry/instrumentedFetch.js";
 
 /** An 80-question request can take longer than the SDK's 10 s default. */
@@ -32,8 +33,13 @@ export function createAnthropic(baseFetch?: FetchLike): Anthropic {
   return new Anthropic({
     ...(baseFetch ? { apiKey: "fake-key" } : {}),
     fetch: instrumentedFetch(baseFetch),
+    maxRetries: 6,
   });
 }
 
 export const jevModel = () => process.env.TYPESAFE_DEFAULT_MODEL?.trim() || "jev-1.13.0";
-export const judgeModel = () => process.env.JUDGE_MODEL?.trim() || "claude-opus-5";
+export const judgeModel = () => process.env.JUDGE_MODEL?.trim() || "claude-fable-5-1";
+/** The LLM that can stand in for Jev (--answerer claude, and the opus-* benchmark variants). */
+export const llmAnswererModel = () => process.env.ANSWERER_MODEL?.trim() || "claude-opus-5";
+/** Low is the production-like setting for high-volume classification; raise it to buy accuracy with tokens. */
+export const llmAnswererEffort = () => (process.env.ANSWERER_EFFORT?.trim() || "low") as Effort;
