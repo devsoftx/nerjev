@@ -43,6 +43,8 @@ npm run nerjev -- run bench/docs/sample-newsletter.pdf
 ```
 
 Useful flags on `run` and `extract`: `--schema <file>`, `--chunk-size <n>`, `--no-resolve`,
+`--no-lean` (repeat every kind's definition in each question; the default sends them once in
+the state, which costs about a quarter of the tokens and scored higher),
 `--accept <p>` and `--review <p>` (confidence thresholds, default 0.70 and 0.40),
 `--include-review`, `--no-cache`, `--json`, `--with-mentions`.
 
@@ -60,6 +62,11 @@ Jev judges them:
    Jev scores each pair as different, unsure or same, and only "same" merges.
 5. **Relate.** For each pair of entities in one sentence, Jev picks a relation the schema
    allows for their types, with its direction, or none.
+
+The schema ships twelve kinds: person, organization, location, officer, document, product,
+service, event, date, finding, recommendation and other. The first nine are names and work
+well. `finding` and `recommendation` are clauses, and a word-by-word tagger returns
+fragments of them; they need a sentence-level stage that does not exist yet.
 
 Everything extracted is a verbatim span with a page number, and every graph edge stores
 the sentence that supports it. Entity and relation types live in
@@ -121,11 +128,33 @@ The run also exposed three bugs, fixed afterwards with tests: a slash joined two
 hyphen at a line break left a gap ("Al- Qaida"). Still open: American-style dates split at
 the comma, and this kind of document needs its own schema.
 
+## Twelve kinds, and sending the definitions once
+
+Second benchmark, after the schema grew from six kinds to twelve. Tables:
+[bench/results/2026-09-19-imf-12kinds/report.md](bench/results/2026-09-19-imf-12kinds/report.md).
+
+| IMF paper, 15 pages | `resolve-80` (definitions in every question) | `lean-80` (definitions once, in the state) |
+| --- | --- | --- |
+| Entities, judged | 100 right, 52 wrong, 50 missed: F1 66.2% | 110 right, 28 wrong, 47 missed: F1 74.6% |
+| Cost and time | $0.194, 24.5 s | $0.055, 11.2 s |
+| Input tokens per word | 951 | 252 |
+| Payload | 16.7 MiB | 5.0 MiB |
+| Gold passages, entity F1 | 96.3% | 99.2% |
+
+Lean won everywhere, so it is now the default. Every kind added to the criteria is paid
+for once per word, which is why twelve kinds doubled the old default's cost; lean removes
+that multiplier. The new `document` kind carries this paper (67 of 86 accepted documents
+strictly right), type accuracy is 100%, and what remains is boundaries: relaxed F1 is
+90.2%. Still open: `other` never clears the accept threshold, `finding` and
+`recommendation` need a sentence-level stage, and the new kinds have no relations defined,
+so no relations came out of this paper. The bigger requests hit Jev's rate limit until a
+token pacer was added; the benchmark then made 3,650 calls with no 429.
+
 ## Layout
 
 ```
 src/pdf, src/text        PDF text, normalization, sentences, tokens, chunks
-src/jev                  Jev client wrapper: batching to the token budget, cache, call records
+src/jev                  Jev client wrapper: batching to the token budget, token pacer, cache, call records
 src/ner                  tag, assemble, resolve
 src/entities             blocking, pair alignment, clustering
 src/relations            pair candidates, classification, aggregation
@@ -140,7 +169,7 @@ assets                   the dashboard's HTML template
 
 ## Tests
 
-`npm test` runs 57 offline tests. Jev is replaced by a fake injected through the SDK's
+`npm test` runs 65 offline tests. Jev is replaced by a fake injected through the SDK's
 `fetch` option, so the real client, retry logic and telemetry all run. They cover token
 offsets, chunking, span assembly, boundary candidates, entity merging, relation options,
 Cypher safety (document text never reaches a query string), metrics, pricing, retries and

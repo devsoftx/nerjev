@@ -123,6 +123,15 @@ describe("cypher safety", () => {
     expect(() => buildStatements({ ...graph, relations: [{ ...graph.relations[0]!, type: "x`]->() DETACH DELETE" }] }, { withMentions: false })).toThrow(/unsafe/);
   });
 
+  it("keeps the source PDF under its own label so an entity of kind 'document' can be a :Document", () => {
+    const data: GraphData = { ...graph, entities: [...graph.entities, { id: "e3", type: "document", canonicalName: "Regulation (EU) 2016/44", aliases: [], mentionIds: ["m3"], confidence: 0.9, pages: [1] }] };
+    const cypher = buildStatements(data, { withMentions: false }).map((s) => s.cypher);
+    expect(cypher.some((c) => c.includes("MERGE (d:SourceDocument {id: $doc.id})"))).toBe(true);
+    expect(cypher.some((c) => c.includes("SET n:Document,"))).toBe(true);
+    expect(cypher.some((c) => /\(d?:Document \{id/.test(c))).toBe(false);
+    expect(() => parseSchema({ entities: { source_document: "x" }, relations: {} })).toThrow();
+  });
+
   it("rejects a schema file whose labels would be unsafe or reserved", () => {
     const base = { entities: { person: "p" }, relations: {} };
     expect(() => parseSchema({ ...base, entities: { "Per son": "p" } })).toThrow();

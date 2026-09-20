@@ -4,6 +4,7 @@ import type { CallMeta, Recorder } from "../bench/recorder.js";
 import { traceCall } from "../telemetry/instrumentedFetch.js";
 import { Budget } from "./budget.js";
 import type { JevCache } from "./cache.js";
+import type { TokenPacer } from "./pacer.js";
 
 export interface JevOptions {
   client: TypeSafeClient;
@@ -13,6 +14,8 @@ export interface JevOptions {
   limit: LimitFunction;
   cache?: JevCache | null;
   budget?: Budget;
+  /** Shared across runs so that back-to-back runs respect the same tokens-per-second limit. */
+  pacer?: TokenPacer | null;
 }
 
 type Answers<Q extends Questions> = SystemOneResult<Q>["answers"];
@@ -64,7 +67,8 @@ export class Jev {
       return hit.answers;
     }
 
-    // The timer starts inside the limiter so time spent queued locally is not counted.
+    // Waiting for the pacer and for a concurrency slot is local queueing, so the timer starts after both.
+    await this.options.pacer?.reserve(this.budget.estimateTokens(meta.stage, questionCount));
     const { trace, wallMs, outcome } = await limit(() =>
       traceCall(() => client.systemOne({ state, questions, model: this.model })),
     );

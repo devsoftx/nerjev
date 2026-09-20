@@ -62,7 +62,7 @@ export interface DashboardData {
   pricingAsOf: string;
   notes: DashboardNotes;
   documents: { id: string; label: string; description: string; pages: number; skippedPages: number[]; characters: number }[];
-  variants: { name: string; chunkSize: number; resolve: boolean }[];
+  variants: { name: string; chunkSize: number; resolve: boolean; kindsInState?: boolean }[];
   results: ResultRow[];
   gold: { passages: number; scores: Record<string, Omit<GoldScore, "errors">> };
   judgeCheck: JudgeCheck | null;

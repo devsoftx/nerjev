@@ -5,6 +5,7 @@ import { evaluateRun } from "../eval/evaluate.js";
 import { type GoldPassage, type GoldScore, scoreAgainstGold, sumScores } from "../eval/gold.js";
 import type { Judge } from "../eval/judge.js";
 import { documentFromText, extractPdf } from "../pdf/extract.js";
+import { TokenPacer, tokensPerSecondFromEnv } from "../jev/pacer.js";
 import { DEFAULT_OPTIONS, type PipelineOptions, runPipeline } from "../pipeline.js";
 import type { ExtractionSchema } from "../schema.js";
 import type { PriceTable } from "./pricing.js";
@@ -17,6 +18,8 @@ export interface Variant {
   name: string;
   chunkSize: number;
   resolve: boolean;
+  /** Kind definitions sent once in the state instead of in every question. */
+  kindsInState?: boolean;
 }
 
 /** Spec section 8: token tagging alone, and tagging plus span resolution at three chunk sizes. */
@@ -25,6 +28,7 @@ export const VARIANTS: Variant[] = [
   { name: "resolve-40", chunkSize: 40, resolve: true },
   { name: "resolve-80", chunkSize: 80, resolve: true },
   { name: "resolve-160", chunkSize: 160, resolve: true },
+  { name: "lean-80", chunkSize: 80, resolve: true, kindsInState: true },
 ];
 
 export interface BenchOptions {
@@ -53,6 +57,8 @@ export async function runBenchmark(client: TypeSafeClient, options: BenchOptions
   if (!pdfs.length) options.log(`no PDFs in ${options.docsDir}; the report will hold gold-set accuracy only`);
   const documents = await Promise.all(pdfs.map((name) => extractPdf(join(options.docsDir, name))));
 
+  const pacer = new TokenPacer(tokensPerSecondFromEnv());
+  const failures: string[] = [];
   const base = (variant: Variant, outDir: string | null): PipelineOptions => ({
     ...DEFAULT_OPTIONS,
     schema: options.schema,
@@ -61,10 +67,12 @@ export async function runBenchmark(client: TypeSafeClient, options: BenchOptions
     variant: variant.name,
     chunkSize: variant.chunkSize,
     resolve: variant.resolve,
+    kindsInState: variant.kindsInState ?? false,
     concurrency: options.concurrency,
     // A benchmark measures real calls, so the response cache is never used.
     cacheDir: null,
     outDir,
+    pacer,
     log: () => {},
   });
 
@@ -75,7 +83,13 @@ export async function runBenchmark(client: TypeSafeClient, options: BenchOptions
     for (const doc of documents) {
       for (let rep = 0; rep < options.repetitions; rep++) {
         options.log(`${variant.name} · ${doc.title} · repetition ${rep + 1}/${options.repetitions}`);
-        const result = await runPipeline(doc, client, base(variant, join(benchDir, "runs")));
+        const result = await runPipeline(doc, client, base(variant, join(benchDir, "runs"))).catch((error: unknown) => {
+          // An unfinished run has no manifest, so the report and the dashboard skip it on their own.
+          failures.push(`${variant.name} · ${doc.title} · repetition ${rep + 1}: ${error instanceof Error ? error.message : String(error)}`);
+          options.log(`  failed: ${failures[failures.length - 1]}`);
+          return null;
+        });
+        if (!result) continue;
         const run: BenchRun = { manifest: result.manifest, calls: result.calls };
         if (options.makeJudge && rep === 0 && result.runDir) {
           const judge = options.makeJudge(result.runDir, { runId: result.manifest.runId, variant: variant.name, docId: doc.id });
@@ -89,14 +103,16 @@ export async function runBenchmark(client: TypeSafeClient, options: BenchOptions
       options.log(`${variant.name} · ${options.gold.length} gold passages`);
       const scores: GoldScore[] = [];
       for (const passage of options.gold) {
-        const result = await runPipeline(documentFromText(passage.text, passage.id), client, base(variant, null));
-        scores.push(scoreAgainstGold(passage, result));
+        const result = await runPipeline(documentFromText(passage.text, passage.id), client, base(variant, null)).catch(() => null);
+        if (result) scores.push(scoreAgainstGold(passage, result));
+        else failures.push(`${variant.name} · gold ${passage.id}`);
       }
       gold[variant.name] = sumScores(scores);
     }
   }
 
   writeFileSync(join(benchDir, "calls.jsonl"), runs.flatMap((r) => r.calls).map((c) => JSON.stringify(c)).join("\n") + "\n");
+  if (failures.length) writeFileSync(join(benchDir, "failures.txt"), failures.join("\n") + "\n");
   writeFileSync(join(benchDir, "gold.json"), JSON.stringify({ passages: options.gold.length, scores: gold }, null, 2));
   return writeReport(benchDir, { pricing: options.pricing, runs, gold, goldPassages: options.gold.length });
 }

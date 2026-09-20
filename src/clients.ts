@@ -21,6 +21,8 @@ export function createTypeSafe(baseFetch?: FetchLike): TypeSafeClient {
     apiKey: process.env.TYPESAFE_API_KEY?.trim() || "fake-key",
     fetch: instrumentedFetch(baseFetch),
     timeout: TYPESAFE_TIMEOUT_MS,
+    // The pacer keeps us under the rate limit; these retries cover the bursts it cannot see.
+    retry: { maxRetries: 6, backoffInitialMs: 1000, backoffMaxMs: 15_000 },
     logLevel: "error",
   });
 }

@@ -4,7 +4,8 @@ import { z } from "zod";
 
 /** Labels become Choice option names, Neo4j labels and relationship types, so they are restricted. */
 const LABEL = /^[a-z][a-z_]*$/;
-const RESERVED = new Set(["none", "not_an_entity"]);
+/** `none` and `not_an_entity` are answer options; the rest would collide with the graph's structural node labels. */
+const RESERVED = new Set(["none", "not_an_entity", "entity", "mention", "source_document"]);
 
 const label = z
   .string()

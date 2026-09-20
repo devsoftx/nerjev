@@ -16,7 +16,7 @@ import { CypherExportStore } from "./graph/cypherExport.js";
 import { Neo4jStore, neo4jConfigFromEnv } from "./graph/neo4j.js";
 import { assembleSpans } from "./ner/assemble.js";
 import { buildBoundaryQuestions } from "./ner/resolve.js";
-import { buildTagQuestions, chunkState, decideTag, tagQuestionId } from "./ner/tag.js";
+import { buildTagQuestions, decideTag, leanState, tagQuestionId } from "./ner/tag.js";
 import { documentFromText, extractPdf } from "./pdf/extract.js";
 import { DEFAULT_OPTIONS, type PipelineOptions, type PipelineResult, runPipeline } from "./pipeline.js";
 import { DEFAULT_SCHEMA_PATH, loadSchema } from "./schema.js";
@@ -49,6 +49,7 @@ interface CommonFlags {
   concurrency: number;
   chunkSize: number;
   resolve: boolean;
+  lean: boolean;
   accept: number;
   review: number;
   includeReview: boolean;
@@ -64,6 +65,7 @@ function withCommon(command: Command): Command {
     .option("--concurrency <n>", "requests in flight", positiveInt, DEFAULT_OPTIONS.concurrency)
     .option("--chunk-size <n>", "askable tokens per chunk", positiveInt, DEFAULT_OPTIONS.chunkSize)
     .option("--no-resolve", "skip span resolution (stage 3c)")
+    .option("--no-lean", "repeat every kind's definition in each question instead of sending them once in the state (about four times the tokens)")
     .option("--accept <p>", "confidence at or above which a mention or relation is accepted", probability, DEFAULT_OPTIONS.thresholds.accept)
     .option("--review <p>", "confidence below which a mention or relation is dropped; between the two it is kept for review", probability, DEFAULT_OPTIONS.thresholds.review)
     .option("--include-review", "keep review-band mentions and relations", false)
@@ -79,6 +81,7 @@ function pipelineOptions(flags: CommonFlags): PipelineOptions {
     model: flags.model ?? jevModel(),
     chunkSize: flags.chunkSize,
     resolve: flags.resolve,
+    kindsInState: flags.lean,
     thresholds: { ...DEFAULT_OPTIONS.thresholds, accept: flags.accept, review: Math.min(flags.review, flags.accept) },
     includeReview: flags.includeReview,
     concurrency: flags.concurrency,
@@ -309,23 +312,25 @@ program
   .option("--chunk <n>", "chunk index", (v) => Number.parseInt(v, 10), 0)
   .option("--chunk-size <n>", "askable tokens per chunk", positiveInt, DEFAULT_OPTIONS.chunkSize)
   .option("--stage <stage>", "tag or resolve; resolve needs the tag answers, so it calls the API once", "tag")
+  .option("--no-lean", "repeat every kind's definition in each question")
   .option("--out <file>", "write to a file instead of stdout")
-  .action(async (pdf: string, flags: { schema: string; chunk: number; chunkSize: number; stage: string; out?: string }) => {
+  .action(async (pdf: string, flags: { schema: string; chunk: number; chunkSize: number; stage: string; lean: boolean; out?: string }) => {
     const schema = loadSchema(flags.schema);
     const doc = await extractPdf(requirePdf(pdf));
     const { tokens, chunks } = segment(doc, flags.chunkSize);
     const chunk = chunks[flags.chunk];
     if (!chunk) throw new BadInput(`chunk ${flags.chunk} does not exist; the document has ${chunks.length} chunks`);
-    let questions = buildTagQuestions(doc.text, tokens, chunk, schema);
+    const state = leanState(chunk, schema, flags.lean);
+    let questions = buildTagQuestions(doc.text, tokens, chunk, schema, flags.lean);
     if (flags.stage === "resolve") {
-      const answers = await createTypeSafe().systemOne({ state: chunkState(chunk), questions, model: jevModel() });
+      const answers = await createTypeSafe().systemOne({ state, questions, model: jevModel() });
       const tags = tokens
         .slice(chunk.tokenStart, chunk.tokenEnd)
         .filter((t) => answers.answers[tagQuestionId(t.index)])
         .map((t) => decideTag(t.index, { ...answers.answers[tagQuestionId(t.index)]!.probabilities }, DEFAULT_OPTIONS.thresholds.token));
-      questions = buildBoundaryQuestions(doc.text, tokens, chunk, assembleSpans(doc.text, tokens, chunk, tags), schema).questions;
+      questions = buildBoundaryQuestions(doc.text, tokens, chunk, assembleSpans(doc.text, tokens, chunk, tags), schema, flags.lean).questions;
     } else if (flags.stage !== "tag") throw new BadInput("--stage must be tag or resolve");
-    const request = JSON.stringify({ state: chunkState(chunk), model: jevModel(), questions }, null, 2);
+    const request = JSON.stringify({ state, model: jevModel(), questions }, null, 2);
     if (flags.out) writeFileSync(flags.out, request);
     else process.stdout.write(`${request}\n`);
     log(`chunk ${chunk.id}: ${Object.keys(questions).length} questions. Playground: https://console.typesafe.ai/playground`);

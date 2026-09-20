@@ -8,6 +8,7 @@ import { buildNodes, candidatePairs } from "./entities/block.js";
 import { clusterEntities } from "./entities/cluster.js";
 import { JevCache } from "./jev/cache.js";
 import { Jev } from "./jev/client.js";
+import { TokenPacer, tokensPerSecondFromEnv } from "./jev/pacer.js";
 import { assembleSpans } from "./ner/assemble.js";
 import { DEFAULT_THRESHOLDS, resolveSpans, spansToMentions, type Thresholds } from "./ner/resolve.js";
 import { tagChunk } from "./ner/tag.js";
@@ -27,6 +28,11 @@ export interface PipelineOptions {
   chunkSize: number;
   /** Stage 3c. Off means spans become mentions as assembled. */
   resolve: boolean;
+  /**
+   * Send the kind definitions once, in the state, and leave the per-question criteria as bare labels.
+   * Cuts input tokens several-fold; costs the model one hop from a label to its definition.
+   */
+  kindsInState: boolean;
   thresholds: Thresholds;
   includeReview: boolean;
   concurrency: number;
@@ -35,6 +41,8 @@ export interface PipelineOptions {
   /** Parent directory for the run's artifacts, or null to keep everything in memory. */
   outDir: string | null;
   maxAlignPairs: number;
+  /** Pass one pacer to several runs that share a rate limit. A run without one makes its own. */
+  pacer?: TokenPacer;
   log: (message: string) => void;
 }
 
@@ -42,6 +50,8 @@ export const DEFAULT_OPTIONS = {
   variant: "default",
   chunkSize: 80,
   resolve: true,
+  // Lean won on the gold passages, the sample and the real document, at about a quarter of the tokens.
+  kindsInState: true,
   thresholds: DEFAULT_THRESHOLDS,
   includeReview: false,
   concurrency: 6,
@@ -87,6 +97,7 @@ export async function runPipeline(doc: DocumentText, client: TypeSafeClient, opt
     options: {
       chunkSize: options.chunkSize,
       resolve: options.resolve,
+      kindsInState: options.kindsInState,
       thresholds: options.thresholds,
       includeReview: options.includeReview,
       concurrency: options.concurrency,
@@ -102,6 +113,7 @@ export async function runPipeline(doc: DocumentText, client: TypeSafeClient, opt
     recorder,
     limit: pLimit(options.concurrency),
     cache: options.cacheDir ? new JevCache(options.cacheDir) : null,
+    pacer: options.pacer ?? new TokenPacer(tokensPerSecondFromEnv()),
   });
   const { schema, thresholds } = options;
 
@@ -112,17 +124,19 @@ export async function runPipeline(doc: DocumentText, client: TypeSafeClient, opt
   write("segments.json", { sentences, chunks, tokenCount: tokens.length });
   options.log(`${chunks.length} chunks, ${sentences.length} sentences, ${tokens.length} tokens`);
 
-  // Stage 3: every chunk starts at once; the limiter inside Jev bounds the requests in flight.
-  const perChunk = await Promise.all(
-    chunks.map(async (chunk) => {
-      const tags = await tagChunk(jev, doc.text, tokens, chunk, schema, thresholds.token);
-      const spans = assembleSpans(doc.text, tokens, chunk, tags);
-      const mentions = options.resolve
-        ? await resolveSpans(jev, doc.text, tokens, chunk, spans, schema, doc.pageMap, thresholds)
-        : spansToMentions(chunk, spans, tokens, doc.pageMap, thresholds);
-      return { tags, spans, mentions };
-    }),
-  );
+  // Stage 3. The first chunk goes alone: its responses tell the budget how many tokens a question
+  // costs under this schema, so the rest can be batched as large as the request limit allows. Then
+  // every other chunk starts at once, and the limiter inside Jev bounds the requests in flight.
+  const processChunk = async (chunk: (typeof chunks)[number]) => {
+    const tags = await tagChunk(jev, doc.text, tokens, chunk, schema, thresholds.token, options.kindsInState);
+    const spans = assembleSpans(doc.text, tokens, chunk, tags);
+    const mentions = options.resolve
+      ? await resolveSpans(jev, doc.text, tokens, chunk, spans, schema, doc.pageMap, thresholds, options.kindsInState)
+      : spansToMentions(chunk, spans, tokens, doc.pageMap, thresholds);
+    return { tags, spans, mentions };
+  };
+  const probe = chunks.length ? [await processChunk(chunks[0]!)] : [];
+  const perChunk = [...probe, ...(await Promise.all(chunks.slice(1).map(processChunk)))];
   const tags = perChunk.flatMap((c) => c.tags);
   const spans = perChunk.flatMap((c) => c.spans);
   const mentions = perChunk.flatMap((c) => c.mentions);

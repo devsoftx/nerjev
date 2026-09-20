@@ -34,6 +34,13 @@ describe("splitSentences", () => {
   });
 });
 
+describe("splitSentences on official text", () => {
+  it("keeps a number with the abbreviation that introduces it", () => {
+    const text = "It acted under Decision No. 17820. The Board agreed. He said No. Then he left.";
+    expect(splitSentences(text).map((s) => text.slice(s.start, s.end))).toEqual(["It acted under Decision No. 17820.", "The Board agreed.", "He said No.", "Then he left."]);
+  });
+});
+
 describe("normalizePages", () => {
   const page = (n: number, body: string) => ({ page: n, text: `Acme Quarterly Report\n${body}\nPage ${n} of 3` });
 

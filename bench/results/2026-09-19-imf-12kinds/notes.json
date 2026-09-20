@@ -1,0 +1,82 @@
+{
+  "subtitle": "Second benchmark. The schema grew from six entity kinds to twelve (officer, document, service, finding, recommendation and other were added), and a fifth variant, lean-80, sends the kind definitions once in the state instead of repeating them in every question. Same two documents, same judge, claude-opus-5 on every third chunk.",
+  "documents": {
+    "66d96fc5cb0dd906": {
+      "label": "IMF board paper",
+      "description": "A real 15-page IMF Executive Board information paper in which Germany notifies the Fund of EU sanctions regulations: dense legal citations, dates, countries and listed organisations. Nothing was tuned on it."
+    },
+    "2b2a1f91b7230943": {
+      "label": "Sample newsletter",
+      "description": "A 3-page fictional newsletter generated from the gold passages. The prompts were tuned on this text, so it shows the ceiling and not what to expect from a new document."
+    }
+  },
+  "findings": [
+    {
+      "status": "finding",
+      "title": "Sending the definitions once beats repeating them",
+      "detail": "On the IMF paper, lean-80 scores a judged entity F1 of 74.6% (110 right, 28 wrong, 47 missed) against 66.2% for resolve-80, which differs only in repeating all twelve definitions in every question. It also costs $0.055 against $0.194, takes 11.2 s against 24.5 s, and moves 5.0 MiB against 16.7 MiB. A tagged word costs 252 input tokens against 951. It wins on the newsletter too (98.7% against 92.1%) and on the gold passages (99.2% against 96.3%). Long criteria seem to distract a model that reads literally. Lean became the pipeline default after this benchmark; --no-lean restores the old behaviour."
+    },
+    {
+      "status": "finding",
+      "title": "Twelve kinds doubled the cost of the old default",
+      "detail": "With six kinds the default pipeline processed this paper for $0.094 in 10.1 s, at 464 tokens per word. With twelve kinds and definitions in every question it is $0.194 and 24.5 s, at 951 tokens per word. Every kind added to the criteria is paid for once per word of the document. Lean mode removes that multiplier: at $0.055 it is cheaper with twelve kinds than the old default was with six."
+    },
+    {
+      "status": "finding",
+      "title": "The document kind carries this paper",
+      "detail": "In the judged third of the paper, lean-80 accepted 86 documents and 67 were strictly right: whole citations such as \"COUNCIL IMPLEMENTING REGULATION (EU) 2026/1393\" and \"Regulation (EC) No 2580/2001\". In the first benchmark the bare \"EU\" inside those citations was the main source of lost recall. It is now part of the document's name, which is the correct reading."
+    },
+    {
+      "status": "open",
+      "title": "What is left is boundaries, not kinds",
+      "detail": "Type accuracy is 100% and relaxed F1, which forgives a boundary, is 90.2% against the strict 74.6%. Of the 28 wrong entities, 23 are real entities with a wrong edge: \"Council Regulation (EC) No 881/2002 imposing\", \"Executive Board Decision No. 144\" where the name continues \"–(52/51)\", and American-style dates still split at the comma. Five more are the bare word \"Regulation\" taken as a document."
+    },
+    {
+      "status": "open",
+      "title": "Lowering the accept threshold no longer helps",
+      "detail": "The first benchmark suggested accepting at 0.50 instead of 0.70. Under the new schema that finding is gone: recomputed from these verdicts, 0.50 gives F1 74.1% against 74.6% at 0.70. It was specific to \"EU\" sitting just under the line, and those mentions are now absorbed into document names. The default stays at 0.70. Calibration error is still high here, 0.163, against 0.018 on the newsletter."
+    },
+    {
+      "status": "open",
+      "title": "The kind \"other\" never clears the threshold",
+      "detail": "Twelve mentions typed \"other\" in the judged chunks were real entities and every one was held for review; none was accepted. Jev is unsure by construction about a kind defined as whatever the rest are not. Either give it concrete sub-kinds, such as currency and nationality, or accept that it feeds a review queue."
+    },
+    {
+      "status": "open",
+      "title": "Findings and recommendations need a sentence-level stage",
+      "detail": "They are clauses, not names, and a word-by-word tagger returns fragments. In a test passage, \"tighten monetary policy\" came out well, \"foreign reserves remain\" lost the rest of its finding, and \"inflation has eased\" was missed. This paper contains neither kind, so they cost tokens here and returned nothing. One Choice per sentence (finding, recommendation or neither) would fit Jev far better."
+    },
+    {
+      "status": "open",
+      "title": "No relations: the new kinds have none defined",
+      "detail": "Zero relations reached the graph from this paper. The schema's relations still describe companies and people. The natural additions are amends (document to document), concerns (document to location), issued_by (document to organization) and holds_office (person to officer). Each is a few lines in the schema file."
+    },
+    {
+      "status": "fixed",
+      "title": "The bigger schema hit the rate limit until requests were paced",
+      "detail": "The first attempt at this benchmark died on a 429: six 50,000-token requests in flight are past Jev's 250,000 tokens per second. A token pacer now spaces request starts, the first chunk of a run is sent alone to measure what a question costs, and a failed repetition no longer ends a benchmark. This run made 3,650 Jev calls with no 429 and no failure. Pacing is part of the wall times shown, which is why they are not comparable with the first benchmark's."
+    },
+    {
+      "status": "fixed",
+      "title": "A bracketed name lost its closing bracket",
+      "detail": "\"ISIL (Da'esh)\" was extracted as \"ISIL (Da'esh\": brackets may now sit inside a name, and only the assembler was closing them, not the boundary stage. Fixed after this benchmark, so two of the wrong boundaries above are already gone."
+    },
+    {
+      "status": "finding",
+      "title": "Grading still costs more than extracting",
+      "detail": "142 judge calls cost $6.59, against $2.59 for all 3,650 Jev calls, with the judge grading every third chunk of one repetition per variant. More entities per chunk made each judge call dearer than in the first benchmark."
+    },
+    {
+      "status": "by design",
+      "title": "Relations that need coreference are missed",
+      "detail": "The four gold relations that every variant misses depend on resolving \"the carmaker\" or \"he\" to a name. Version 1 only relates entities named in the same sentence."
+    }
+  ],
+  "caveats": [
+    "This benchmark is not like for like with the first one. The schema changed what counts as an entity: documents and officers now count, so the same text has more entities to find and more ways to be wrong.",
+    "The judge graded every third chunk of each document, on the first repetition of each variant. Variants with different chunk sizes were judged on different slices of the text, so a gap of a few points between them is not a finding. resolve-80 and lean-80 share their chunks, so that comparison is fair.",
+    "Judged recall and F1 are estimates: the list of missed entities is the judge's own. The judge's calibration check was run with the six-kind schema and has not been repeated with twelve.",
+    "The gold set is 13 fictional passages that the prompts were tuned against, and the sample newsletter is built from 12 of them. Their scores are development numbers, not a held-out test.",
+    "Costs use list prices as of 2026-09-19 and are computed from recorded tokens when the page is built. Latency is the final successful attempt of each call; wall time includes the pacer's waits."
+  ]
+}

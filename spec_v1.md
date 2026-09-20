@@ -86,7 +86,9 @@ order. Output is
   heading has no full stop, so "Item 10" would otherwise fuse with the sentence under it;
   a short unpunctuated line followed by a capitalized line is treated as a heading.
   Keep a map from normalized offsets back to pages so every later span can cite its page.
-- Sentences: `Intl.Segmenter` with `granularity: "sentence"`. No dependency needed.
+- Sentences: `Intl.Segmenter` with `granularity: "sentence"`, followed by a merge pass,
+  because the segmenter breaks after "Dr.", after an initial, and after "No." in "Decision
+  No. 17820". No dependency needed.
 - Tokens: a regex tokenizer that keeps `U.S.`, `J.`, `St.`, `O'Brien`, `AT&T` and
   `1,315.50` whole, splits possessive `'s`, and emits every other punctuation mark as its
   own token, the hyphen included. "Hewlett-Packard" is rejoined in 3b, while "New
@@ -98,7 +100,19 @@ order. Output is
 ### 3.3 NER
 
 **3a. Tag tokens.** One request per chunk, one Choice per askable token. Punctuation is
-never asked about.
+never asked about. The first chunk of a run goes alone, as a probe: its `usage` tells the
+budget what a question costs under the current schema, and the remaining chunks are then
+batched as large as the request limit allows. A token pacer spaces request starts to stay
+under Jev's tokens-per-second limit (200k by default, `TYPESAFE_TOKENS_PER_SECOND` to
+change it); without it, a schema with many kinds pushes six concurrent requests past the
+limit and the run dies on 429s.
+
+Two ways of telling Jev what the kinds mean are supported. The original design repeats every
+kind's description in each question's criteria (`--no-lean`). Lean mode sends the
+descriptions once, in `state.kinds`, and leaves the criteria as bare labels. With the
+twelve-kind schema it used about a quarter of the tokens and scored higher on the gold
+passages, the sample and the IMF paper (judged F1 74.6% against 66.2%), so it is the
+default. The benchmark keeps both: `resolve-*` repeat the definitions, `lean-80` does not.
 
 ```jsonc
 // state
@@ -134,14 +148,18 @@ joiners `&`, `-`, `'` and `’` bridge a merge; a sentence boundary never does, 
 does a slash, which separates alternatives ("Al-Qaida/ISIL" is two organizations). A span
 never starts with a lowercase article, preposition or conjunction ("of the Council…" is
 "Council…"), nor with a capitalized article that opens its sentence. "in The Hague" keeps
-its article because it is mid-sentence. The slash and preposition rules came from the
-first real document.
+its article because it is mid-sentence. A span never ends with such a word either
+("2026/1211 of"), and it never opens with a possessive or demonstrative ("its chief
+technology officer"). A bracket that hugs the word inside it can sit inside a name, so
+"Regulation (EU) 2016/44" is one span, and a span that opens a bracket takes the closing
+one. These rules all came from the first real document.
 
 **3c. Resolve spans.** Two requests per chunk, in order:
 
 1. `boundary`, one Choice per span. The options are verbatim candidate strings: the span
-   itself, the span grown by up to two tokens on each side, the span shrunk by one token
-   on each side, the span joined with a neighbouring span at most two tokens away, and
+   itself, the span grown by up to two tokens on each side, the span shrunk by up to two
+   tokens on each side (one was not enough to turn "Fjord X1 warehouse robot" into "Fjord
+   X1"), the span joined with a neighbouring span at most two tokens away, and
    `none`. Code copies the chosen string and looks up its offsets, so a boundary fix can
    never invent text. This is what turns `Bank` + `America` back into `Bank of America`.
    The question lists the schema's kinds with their descriptions, because "named entity"
@@ -219,7 +237,17 @@ straight into Choice criteria, so editing the file changes the extractor without
 changes. They are the main tuning surface: on the starter gold set, rewriting them to say
 what is *not* part of a name moved entity F1 from 89.5% to 98.2% with no code change.
 `exactMatchOnly` lists types that merge on identical text only and never through fuzzy
-pairing, since "2004" and "2005" are one character apart and different dates. The default set is generic and is expected to be replaced once the document
+pairing, since "2004" and "2005" are one character apart and different dates. Numbered
+documents are in it for the same reason: "2016/44" is not "2016/48".
+
+The shipped schema has twelve kinds: person, organization, location, officer, document,
+product, service, event, date, finding, recommendation and other. Three lessons from
+adding the last six. Kinds that overlap need their borders written down in both
+descriptions (a job title is an officer and not part of a person's name; a named service
+is a service and not a product). `other` needs to say that an ordinary word is never
+"other", or it becomes a catch-all. And `finding` and `recommendation` are clauses, not
+names: a word-by-word tagger returns fragments of them ("foreign reserves remain"), so
+they belong in a sentence-level stage that v1 does not have. The default set is generic and is expected to be replaced once the document
 domain is known (open question 3).
 
 ```jsonc
@@ -252,9 +280,9 @@ writer sits behind a `GraphStore` interface with a second implementation that em
 graph database means one new class (open question 2).
 
 ```
-(:Document {id, sha256, path, title, pageCount, ingestedAt})
+(:SourceDocument {id, sha256, path, title, pageCount, ingestedAt})   // the PDF itself
 (:Entity:Person {id, canonicalName, type, aliases, confidence})     // one extra label per type
-(:Entity)-[:MENTIONED_IN {count, pages, runId}]->(:Document)
+(:Entity)-[:MENTIONED_IN {count, pages, runId}]->(:SourceDocument)
 (:Entity)-[:WORKS_FOR {confidence, count, evidence, pages, docId, chunkIds, model, runId, needsReview}]->(:Entity)
 ```
 
@@ -262,7 +290,11 @@ graph database means one new class (open question 2).
   loads idempotent and gives a basic cross-document join for free.
 - Re-ingesting a document deletes that `docId`'s edges and `MENTIONED_IN` links first,
   then writes the new run.
-- Uniqueness constraints on `Document.id` and `Entity.id`, created at start-up.
+- Uniqueness constraints on `SourceDocument.id` and `Entity.id`, created at start-up. The
+  PDF's node was `:Document` until the schema gained a `document` entity kind, whose nodes
+  are `:Entity:Document`. A start-up statement relabels source nodes in graphs written
+  before the change, and the schema loader rejects kinds named `entity`, `mention` or
+  `source_document`.
 - Cypher cannot take a relationship type as a parameter, so the type is interpolated
   into the query. It is only ever taken from the schema file's keys, validated against
   `^[a-z_]+$` and upper-cased. Text from a document never reaches a query string; all
@@ -287,7 +319,9 @@ graph database means one new class (open question 2).
 
 Common flags: `--schema <file>`, `--out <dir>`, `--model <id>`, `--concurrency <n>`
 (default 6), `--no-resolve` (skip 3c), `--accept <p>` and `--review <p>` (confidence
-thresholds), `--include-review`, `--no-cache`, `--json`.
+thresholds), `--no-lean` (kind definitions in every question instead of once in the
+state), `--include-review`,
+`--no-cache`, `--json`.
 Exit code 0 on success, 1 on a failed stage, 2 on bad input or missing keys.
 
 ## 6. Tech stack and layout
@@ -398,7 +432,9 @@ Keeping the judge trustworthy:
 cache off, fixed concurrency, and a pinned Jev version.
 
 Variants for v1: token tagging only (`--no-resolve`); token tagging plus span
-resolution (the default); chunk sizes of 40, 80 and 160 askable tokens. At about 460
+resolution (the default); chunk sizes of 40, 80 and 160 askable tokens; and `lean-80`,
+the default pipeline with the kind definitions sent once in the state. A repetition that
+fails is logged to `failures.txt` and skipped, so one bad run does not cost the benchmark. At about 460
 input tokens per tag question, a 160-token chunk still splits into requests of about 80
 questions to stay inside the request limit, so it changes the state size and not the
 number of tagging calls. Optional

@@ -1,14 +1,21 @@
 {
   "entities": {
-    "person": "A named individual human, such as 'Maria Chen'. Job titles, honorifics and pronouns are not part of the name.",
+    "person": "A named individual human, such as 'Maria Chen'. Honorifics and pronouns are not part of the name, and a job title on its own is an officer, not a person.",
     "organization": "A named company, agency, institution or team, such as 'Bank of America'. Generic words such as 'the bank' or 'the company' are not organizations.",
     "location": "A named country, region, city, address or geographic feature, such as 'Oslo'. Generic words such as 'city of' or 'office' are not part of the name.",
-    "product": "The brand or model name of a commercial product, service or software, such as 'Vision Pro'. Generic words for the kind of thing, such as robot, drone, app, sensor or service, are not part of the name.",
+    "officer": "A specific office, position or job title that stands for whoever holds it, such as 'Managing Director', 'the Secretary', 'Executive Director for Germany' or 'chief executive'. Unnamed staff and groups such as 'a spokesperson', 'analysts' or 'delegates' are not officers, and neither is a description of what someone did, such as 'founder' or 'winner'.",
+    "document": "A named or numbered document, law, decision, report or publication, such as 'Regulation (EU) 2016/44', 'Executive Board Decision No. 144' or 'Staff Report for the 2026 Article IV Consultation'. A generic mention such as 'the report' or 'this letter' is not a document.",
+    "product": "The brand or model name of a physical product or a piece of software, such as 'Vision Pro' or 'Photoshop'. Generic words for the kind of thing, such as robot, drone, app or sensor, are not part of the name. A named service or programme is a service, not a product.",
+    "service": "A named service, programme or facility that an organization provides, such as 'Extended Credit Facility', 'Medicare' or 'Prime Video'. Generic words such as 'parcel service' or 'lending programme' are not part of the name.",
     "event": "A named event such as a conference, election, war or disaster, such as 'World Economic Forum'. A generic description such as 'a chess tournament' is not a named event.",
-    "date": "A specific calendar date, month or year, such as '12 June 2024', 'March 2021' or '2019'. Prepositions are not part of it, and relative expressions such as 'last year' or 'next quarter' are not dates."
+    "date": "A specific calendar date, month or year, such as '12 June 2024', 'March 2021' or '2019'. Prepositions are not part of it, and relative expressions such as 'last year' or 'next quarter' are not dates.",
+    "finding": "A result or conclusion that the text reports from an assessment, review, audit or investigation, such as 'foreign reserves remain below the adequacy range'. Mark only the words that state the result, not the words that introduce it, such as 'the report finds that'.",
+    "recommendation": "An action that the text advises or urges someone to take, such as 'tighten monetary policy' or 'publish the audit results'. Mark only the words that state the action, not the words that introduce it, such as 'staff recommends that'.",
+    "other": "A proper name that fits none of the other kinds, such as a currency ('Special Drawing Rights', 'euro'), a nationality or language ('German'), an award or a named standard. An ordinary word is never 'other': if the word is not a proper name, the answer is none."
   },
   "exactMatchOnly": [
-    "date"
+    "date",
+    "document"
   ],
   "relations": {
     "works_for": {
@@ -63,9 +70,10 @@
         "organization"
       ],
       "range": [
-        "product"
+        "product",
+        "service"
       ],
-      "text": "A makes, sells or operates B."
+      "text": "A makes, sells, provides or operates B."
     },
     "participated_in": {
       "domain": [

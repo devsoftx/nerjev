@@ -21,8 +21,15 @@ const groupBy = <T>(items: T[], key: (item: T) => string) => {
   return groups;
 };
 
+/**
+ * Run before every load, each in its own transaction. The first two migrate graphs written before
+ * the source PDF's label changed from :Document to :SourceDocument, which freed :Document for
+ * entities of kind "document". A source node is told apart by its sha256 and by not being an :Entity.
+ */
 export const CONSTRAINTS: Statement[] = [
-  { cypher: "CREATE CONSTRAINT document_id IF NOT EXISTS FOR (d:Document) REQUIRE d.id IS UNIQUE", params: {} },
+  { cypher: "DROP CONSTRAINT document_id IF EXISTS", params: {} },
+  { cypher: "MATCH (d:Document) WHERE d.sha256 IS NOT NULL AND NOT d:Entity SET d:SourceDocument REMOVE d:Document", params: {} },
+  { cypher: "CREATE CONSTRAINT source_document_id IF NOT EXISTS FOR (d:SourceDocument) REQUIRE d.id IS UNIQUE", params: {} },
   { cypher: "CREATE CONSTRAINT entity_id IF NOT EXISTS FOR (e:Entity) REQUIRE e.id IS UNIQUE", params: {} },
   { cypher: "CREATE CONSTRAINT mention_id IF NOT EXISTS FOR (m:Mention) REQUIRE m.id IS UNIQUE", params: {} },
 ];
@@ -38,12 +45,12 @@ export function buildStatements(data: GraphData, options: WriteOptions): Stateme
   const statements: Statement[] = [
     // Re-ingesting a document replaces what the previous run of that document wrote.
     { cypher: "MATCH (:Entity)-[r]->(:Entity) WHERE r.docId = $docId DELETE r", params: { docId } },
-    { cypher: "MATCH (:Entity)-[r:MENTIONED_IN]->(:Document {id: $docId}) DELETE r", params: { docId } },
+    { cypher: "MATCH (:Entity)-[r:MENTIONED_IN]->(:SourceDocument {id: $docId}) DELETE r", params: { docId } },
     { cypher: "MATCH (m:Mention {docId: $docId}) DETACH DELETE m", params: { docId } },
     { cypher: "MATCH (e:Entity) WHERE NOT (e)--() DELETE e", params: {} },
     {
       cypher:
-        "MERGE (d:Document {id: $doc.id}) " +
+        "MERGE (d:SourceDocument {id: $doc.id}) " +
         "SET d.sha256 = $doc.sha256, d.path = $doc.path, d.title = $doc.title, d.pageCount = toInteger($doc.pageCount), d.ingestedAt = datetime()",
       params: { doc: data.document },
     },
@@ -56,7 +63,7 @@ export function buildStatements(data: GraphData, options: WriteOptions): Stateme
         `MERGE (n:Entity {id: e.id}) SET n:${nodeLabel(type)}, n.type = e.type, n.canonicalName = e.canonicalName, ` +
         "n.aliases = [x IN coalesce(n.aliases, []) WHERE NOT x IN e.aliases] + e.aliases, " +
         "n.confidence = CASE WHEN coalesce(n.confidence, 0.0) > e.confidence THEN n.confidence ELSE e.confidence END " +
-        "WITH n, e MATCH (d:Document {id: $docId}) " +
+        "WITH n, e MATCH (d:SourceDocument {id: $docId}) " +
         "MERGE (n)-[m:MENTIONED_IN]->(d) SET m.count = toInteger(e.count), m.pages = [p IN e.pages | toInteger(p)], m.runId = $runId",
       params: {
         docId,
@@ -105,7 +112,7 @@ export function buildStatements(data: GraphData, options: WriteOptions): Stateme
     statements.push({
       cypher:
         "UNWIND $mentions AS m " +
-        "MATCH (e:Entity {id: m.entityId}), (d:Document {id: $docId}) " +
+        "MATCH (e:Entity {id: m.entityId}), (d:SourceDocument {id: $docId}) " +
         "MERGE (n:Mention {id: m.id}) SET n.docId = $docId, n.text = m.text, n.start = toInteger(m.start), n.end = toInteger(m.end), " +
         "n.page = toInteger(m.page), n.confidence = m.confidence " +
         "MERGE (n)-[:REFERS_TO]->(e) MERGE (d)-[:HAS_MENTION]->(n)",

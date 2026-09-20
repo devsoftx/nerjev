@@ -8,9 +8,12 @@ export const NONE = "none";
 const CONTEXT_WINDOW_TOKENS = 8;
 
 /** The chunk as Jev sees it. The previous sentence rides along for disambiguation and nothing else does. */
-export function chunkState(chunk: Chunk): EntryType {
-  return chunk.contextBefore ? { context_before: chunk.contextBefore, text: chunk.text } : { text: chunk.text };
+export function chunkState(chunk: Chunk, kinds?: Record<string, string>): EntryType {
+  return { ...(kinds ? { kinds } : {}), ...(chunk.contextBefore ? { context_before: chunk.contextBefore } : {}), text: chunk.text };
 }
+
+/** Lean mode: the definitions travel once in `state.kinds`, so the options are bare labels. */
+export const leanState = (chunk: Chunk, schema: ExtractionSchema, lean: boolean) => chunkState(chunk, lean ? schema.entities : undefined);
 
 /**
  * Quotes tokens from..to (inclusive) with their neighbours and wraps them in [[ ]]. Quoting the words
@@ -26,8 +29,9 @@ export function markInContext(docText: string, tokens: Token[], chunk: Chunk, fr
   return marked.replace(/\s+/g, " ");
 }
 
-export function typeCriteria(schema: ExtractionSchema, noneLabel: string, noneText: string): Record<string, string> {
-  return { ...schema.entities, [noneLabel]: noneText };
+export function typeCriteria(schema: ExtractionSchema, noneLabel: string, noneText: string, lean = false): Record<string, string | null> {
+  const kinds = lean ? Object.fromEntries(Object.keys(schema.entities).map((kind) => [kind, null])) : schema.entities;
+  return { ...kinds, [noneLabel]: noneText };
 }
 
 export const tagQuestionId = (tokenIndex: number) => `t${tokenIndex}`;
@@ -38,8 +42,9 @@ export function buildTagQuestions(
   tokens: Token[],
   chunk: Chunk,
   schema: ExtractionSchema,
+  lean = false,
 ): Record<string, ChoiceQuestion> {
-  const criteria = typeCriteria(schema, NONE, "The word is not part of any named entity.");
+  const criteria = typeCriteria(schema, NONE, "The word is not part of any named entity.", lean);
   const questions: Record<string, ChoiceQuestion> = {};
   for (const token of tokens.slice(chunk.tokenStart, chunk.tokenEnd)) {
     if (!isAskable(token)) continue;
@@ -48,7 +53,7 @@ export function buildTagQuestions(
         // Read literally, "Lisbon" is a location even inside "Lisbon Climate Forum", which splits the
         // event's name in two. The second sentence tells the model to answer for the whole name.
         task:
-          "Decide which kind of named entity the word marked with [[ ]] is part of, as it is used in `text`. " +
+          `Decide which kind of named entity the word marked with [[ ]] is part of, as it is used in \`text\`.${lean ? " The kinds are defined in `kinds`." : ""} ` +
           "If the word is one word of a longer name, answer with the kind of the longer name: 'York' in 'New York Times' is part of an organization.",
         word: token.text,
         marked_in_context: markInContext(docText, tokens, chunk, token.index, token.index),
@@ -76,9 +81,10 @@ export async function tagChunk(
   chunk: Chunk,
   schema: ExtractionSchema,
   tokenThreshold: number,
+  lean = false,
 ): Promise<TokenTag[]> {
-  const questions = buildTagQuestions(docText, tokens, chunk, schema);
-  const answers = await jev.ask(chunkState(chunk), questions, { stage: "ner_tag", chunkId: chunk.id });
+  const questions = buildTagQuestions(docText, tokens, chunk, schema, lean);
+  const answers = await jev.ask(leanState(chunk, schema, lean), questions, { stage: "ner_tag", chunkId: chunk.id });
   const tags: TokenTag[] = [];
   for (const token of tokens.slice(chunk.tokenStart, chunk.tokenEnd)) {
     const answer = answers[tagQuestionId(token.index)];
